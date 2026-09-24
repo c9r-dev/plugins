@@ -153,12 +153,14 @@ const isTypeable = (node: Node) =>
 
 /**
  * Where a URL can be read from: a link's href, a field's value, or a node whose text shows one. Reading needs no
- * interaction, so a disabled field counts: a copy-link field is often one.
+ * interaction, so a disabled field counts: a copy-link field is often one. Unnamed nodes are left out: the choice
+ * would be refused anyway, and a page's icon-only links split the score, holding the right field near 0.72.
  */
 const mayHoldUrl = (node: Node) =>
-  node.role === "link" ||
-  TYPEABLE_ROLES.has(node.role) ||
-  /https?:\/\//.test(node.label);
+  !isUnnamed(node.label) &&
+  (node.role === "link" ||
+    TYPEABLE_ROLES.has(node.role) ||
+    /https?:\/\//.test(node.label));
 
 /**
  * The page as Playwright's accessibility tree with element refs. An open dialog is the whole tree, since nothing

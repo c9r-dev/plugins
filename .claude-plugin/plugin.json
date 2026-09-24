@@ -1,7 +1,7 @@
 {
   "name": "jev-browse",
   "description": "Run a plain-English QA checklist in a real browser, with TypeSafe's Jev judging each step over Cloudflare Workers AI.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": { "name": "cooper667" },
   "repository": "https://github.com/cooper667/jev-browse",
   "license": "MIT"
