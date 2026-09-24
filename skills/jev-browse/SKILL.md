@@ -1,6 +1,6 @@
 ---
 name: jev-browse
-description: Run a natural-language QA checklist in a real browser against any served web app, judged by Jev (TypeSafe) over Cloudflare Workers AI, in seconds and under a cent per run. Use it while implementing a change to check a user flow works instead of driving a browser by hand, and to execute the QA section of a PR description. Starts from any URL - a preview, a local server, a third-party site - or from an app's own logged-in e2e fixture through a manifest. Trigger words - qa check, check the flow, verify the steps, run the QA steps, does this work in the browser.
+description: Run a natural-language QA checklist in a real browser against any served web app, judged by Jev (TypeSafe) over Cloudflare Workers AI, in seconds and under a cent per run. Use it unprompted after changing anything a user sees, to confirm the flow works before calling the work done - run it from a subagent and relay its verdict line - instead of driving a browser by hand. Also use it when asked to run the QA section of a PR description, or to compare two builds. Starts from any URL - a preview, a local server, a third-party site - or from an app's own logged-in e2e fixture through a manifest. Trigger words - qa check, check the flow, verify the steps, run the QA steps, does this work in the browser.
 ---
 
 # jev-browse

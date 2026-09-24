@@ -1,12 +1,27 @@
 # jev-browse
 
-A Claude Code plugin that runs a QA checklist written in plain English in a real browser. Each line is an action
+A Claude Code plugin that runs a checklist written in plain English in a real browser. Each line is an action
 ("Select the Generate Link button", `Type "Acme" into the Name field`) or a check ("Confirm the report lists three
 risks"). [Playwright](https://playwright.dev) drives the browser; TypeSafe's Jev model, served on
 [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) as `typesafe/jev`, picks the element for
 each action from the page's accessibility tree and judges each check.
 
-A 24-step flow runs in about 35 seconds for about a cent of Jev calls.
+A 24-step flow runs in about 35 seconds for about a cent of Jev calls. Driving the same flow through a browser
+extension took Claude 14 minutes.
+
+## What it is for
+
+- **Claude checking its own work.** This is QA that nobody asks for: after a change, Claude runs it on its own
+  initiative before saying the work is done. It hands a subagent a few lines describing the flow it just built,
+  and gets back one verdict line plus screenshots, instead of spending its own context on a click-by-click
+  browser session. The subagent runs the checklist, relays
+  `[qa] verdict PASS: 8 of 8 decisive steps passed` or the failing step with its reason, and the main session
+  carries on. With an `--app` manifest it logs in through the app's own e2e fixture, so a login or 2FA screen
+  never stops it.
+- **Running a PR's QA steps.** The "how to test" section of a pull request is usually a checklist already; paste
+  it in and it runs as written.
+- **Before-and-after evidence.** Run one checklist against two servers, such as the branch and main, and compare
+  the verdicts and screenshots.
 
 ```text
 [qa] 2 passed click 1345ms settle=562ms a=1 c=1.00 Select the "External shares" button | button "External shares"
