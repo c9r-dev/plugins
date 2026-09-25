@@ -1,8 +1,8 @@
 # jev-browse
 
-A Claude Code plugin that runs a checklist written in plain English in a real browser. Each line is an action
-("Select the Generate Link button", `Type "Acme" into the Name field`) or a check ("Confirm the report lists three
-risks"). [Playwright](https://playwright.dev) drives the browser; TypeSafe's Jev model, served on
+A Claude Code and Codex plugin that runs a checklist written in plain English in a real browser. Each line is
+an action ("Select the Generate Link button", `Type "Acme" into the Name field`) or a check ("Confirm the report
+lists three risks"). [Playwright](https://playwright.dev) drives the browser; TypeSafe's Jev model, served on
 [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) as `typesafe/jev`, picks the element for
 each action from the page's accessibility tree and judges each check.
 
@@ -11,13 +11,12 @@ extension took Claude 14 minutes.
 
 ## What it is for
 
-- **Claude checking its own work.** This is QA that nobody asks for: after a change, Claude runs it on its own
-  initiative before saying the work is done. It hands a subagent a few lines describing the flow it just built,
-  and gets back one verdict line plus screenshots, instead of spending its own context on a click-by-click
-  browser session. The subagent runs the checklist, relays
-  `[qa] verdict PASS: 8 of 8 decisive steps passed` or the failing step with its reason, and the main session
-  carries on. With an `--app` manifest it logs in through the app's own e2e fixture, so a login or 2FA screen
-  never stops it.
+- **An agent checking its own work.** After a user-visible change, Claude or Codex can run a flow before saying
+  the work is done. It gives a subagent a few lines describing the flow when delegation is available, or runs
+  the checklist directly, and gets back one verdict line plus screenshots instead of spending its context on a
+  click-by-click browser session. The run reports
+  `[qa] verdict PASS: 8 of 8 decisive steps passed` or the failing step with its reason. With an `--app` manifest
+  it logs in through the app's own e2e fixture, so a login or 2FA screen never stops it.
 - **Running a PR's QA steps.** The "how to test" section of a pull request is usually a checklist already; paste
   it in and it runs as written.
 - **Before-and-after evidence.** Run one checklist against two servers, such as the branch and main, and compare
@@ -36,13 +35,27 @@ screenshot to look at instead.
 
 ## Install
 
+### Claude Code
+
 ```text
 /plugin marketplace add cooper667/jev-browse
 /plugin install jev-browse@jev-browse
 ```
 
-Then ask Claude to "qa check" a flow, or invoke the `jev-browse` skill. `skills/jev-browse/SKILL.md` is the full
-guide: how to write steps, read the output and debug a failure.
+Then ask Claude to "qa check" a flow, or invoke the `jev-browse` skill.
+
+### Codex CLI
+
+```bash
+codex plugin marketplace add cooper667/jev-browse
+codex plugin add jev-browse@jev-browse
+```
+
+Start a new Codex session, then ask it to "qa check" a flow or invoke `$jev-browse`. In the desktop app, add the
+repository as a plugin marketplace and install `jev-browse` from the Plugins Directory. The same package works
+in Claude Code and Codex.
+
+`skills/jev-browse/SKILL.md` is the full guide: how to write steps, read the output and debug a failure.
 
 ## Requirements
 
@@ -58,12 +71,24 @@ guide: how to write steps, read the output and debug a failure.
   afterwards; `--worktree` names it.
 - **The app already served** at the URL the run will hit. The plugin never starts servers or seeds data.
 
+The runner sends the page's accessibility tree and checklist text to Cloudflare Workers AI for Jev decisions.
+Codex must be able to execute Playwright locally and reach Cloudflare's API; its sandbox may request permission
+for those operations.
+
 ## Two ways to start
 
 - `--url https://…` opens any page, anonymously or from a Playwright storage-state file (`--storage-state`).
 - `--app NAME` starts from your app's own logged-in e2e fixture. Describe the app once in
   `~/.config/jev-browse/apps/`: `NAME.env` sets `E2E_DIR` and `RUN`, and `NAME.spec.ts` gets a logged-in page
   from your fixtures and calls `runChecklist`. The skill documents the format.
+
+For a first `--url` check from a repository checkout, with a Playwright project available at
+`/path/to/playwright-project`:
+
+```bash
+printf '%s\n' 'Confirm the page shows the "Example Domain" heading' > /tmp/jev-browse-steps.txt
+skills/jev-browse/run.sh /tmp/jev-browse-steps.txt --url https://example.com --worktree /path/to/playwright-project
+```
 
 ## Licence
 
