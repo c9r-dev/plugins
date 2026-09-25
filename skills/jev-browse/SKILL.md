@@ -1,6 +1,6 @@
 ---
 name: jev-browse
-description: Run a natural-language QA checklist in a real browser against any served web app, judged by Jev (TypeSafe) over Cloudflare Workers AI, in seconds and under a cent per run. Use it unprompted after changing anything a user sees, to confirm the flow works before calling the work done - run it from a subagent and relay its verdict line - instead of driving a browser by hand. Also use it when asked to run the QA section of a PR description, or to compare two builds. Starts from any URL - a preview, a local server, a third-party site - or from an app's own logged-in e2e fixture through a manifest. Trigger words - qa check, check the flow, verify the steps, run the QA steps, does this work in the browser.
+description: Run a natural-language browser QA checklist against a served web app with Playwright and Jev on Cloudflare Workers AI. Use after a user-visible change when browser QA is appropriate, for a PR's QA steps, or to compare two builds. Start from a URL or an app's logged-in e2e fixture. Trigger words include qa check, check the flow, verify the steps, and run the QA steps.
 ---
 
 # jev-browse
@@ -17,6 +17,8 @@ values and states. It cannot see how anything looks or where it sits: layout, ov
 text, colour, spacing, an icon's appearance. Clipped text is still in the tree, so a check on it passes whether the
 bug is there or not. Preflight flags such checks `visual` and the runner reports them `unsupported` without asking
 Jev; judge those from the step's screenshot, or in a browser you can see.
+
+The runner sends the accessibility tree and checklist text to Cloudflare Workers AI for Jev decisions.
 
 ## The skill runs steps. The caller owns the target.
 
@@ -54,9 +56,11 @@ manifests is the place for anything a caller must know about those apps.
 ```
 
 - `<skill-dir>` is this skill's base directory, shown when the skill loads.
-- `--worktree` defaults to the current directory; pass it from a subagent, whose cwd resets. Both modes need a
-  checkout with Playwright and its browsers installed, even when the URL is outside the repo.
-- Run it from a subagent in the foreground with `timeout: 600000`; the spec's own cap is 10 minutes.
+- `--worktree` defaults to the current directory; pass an absolute path when the run's working directory differs
+  from the Playwright checkout, including delegated runs. Both modes need a checkout with Playwright and its
+  browsers installed, even when the URL is outside the repo.
+- Run in the foreground with a command session that permits 10 minutes; the spec's own cap is 10 minutes.
+  Delegate the run when an available subagent can handle it, otherwise run it directly.
 - **Browser and size**: `--project` takes `Desktop-Chromium` (the default), `Desktop-Firefox`, `Desktop-Webkit`,
   `Mobile-Chromium`, `Mobile-Webkit-iPad` or `Mobile-Webkit-iPhone`; in `--app` mode these must be project names
   the app's own config defines. In `--url` mode `--viewport 400x900` overrides the device's viewport to check one
@@ -135,13 +139,12 @@ Live lines while it runs, then a table and a Jev usage line:
   advisory, not decisive: 2, 7`. PASS or FAIL counts decisive steps only, and matches the exit status.
 
 Report to the user: the verdict line word for word, each failed step with its detail, and what the screenshots of
-the advisory steps show. Not the whole table. A subagent running the skill relays the verdict line verbatim rather
-than restating the exit status.
+the advisory steps show. Not the whole table. If delegated, have the subagent relay the verdict line verbatim.
 
 ## Debugging a failure
 
-Start with the failed step's `step-N.png` (open it with Read) and the `qa-report.json` detail. When that is not
-enough, rerun with recording on:
+Start with the failed step's `step-N.png` (inspect it with an image viewer) and the `qa-report.json` detail. When
+that is not enough, rerun with recording on:
 
 - `--screenshots` — a `step-N.png` after every step, so the page state before the failing one is on disk too.
 - `--trace` — a Playwright trace (`qa-trace.zip`: DOM snapshot, screenshot and network for every action). Both
