@@ -90,6 +90,17 @@ printf '%s\n' 'Confirm the page shows the "Example Domain" heading' > /tmp/jev-b
 skills/jev-browse/run.sh /tmp/jev-browse-steps.txt --url https://example.com --worktree /path/to/playwright-project
 ```
 
+## Releases
+
+[release-please](https://github.com/googleapis/release-please) keeps a release pull request open against
+`main`. Merging it tags the release as `vX.Y.Z`, publishes a GitHub release and updates `CHANGELOG.md`.
+
+The next version comes from the [Conventional Commits](https://www.conventionalcommits.org/) on `main` since the
+last release: before 1.0.0, `feat:` and breaking changes bump the minor version and `fix:` bumps the patch.
+`docs:`, `chore:`, `ci:` and commits without a type do not trigger a release.
+
+release-please also writes the version into `.claude-plugin/plugin.json`, so do not edit it by hand.
+
 ## Licence
 
 MIT
