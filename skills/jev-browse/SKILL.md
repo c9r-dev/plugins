@@ -12,11 +12,15 @@ browser by hand.
 
 It is a QA aid, not a merge gate: a pass is Jev's judgement at ≥ 0.7 probability, not a locator assertion.
 
-**Jev reads the accessibility tree, never pixels.** It sees which elements exist and their roles, labels, text,
-values and states. It cannot see how anything looks or where it sits: layout, overlap, clipping or overflowing
-text, colour, spacing, an icon's appearance. Clipped text is still in the tree, so a check on it passes whether the
-bug is there or not. Preflight flags such checks `visual` and the runner reports them `unsupported` without asking
-Jev; judge those from the step's screenshot, or in a browser you can see.
+**Jev judges structure and text; you judge looks.** Jev reads the accessibility tree, never pixels: which elements
+exist and their roles, labels, text, values and states. How something looks or where it sits (layout, overlap,
+clipping or overflowing text, colour, spacing, an icon's appearance) is not in the tree, and clipped text is still
+there, so a tree cannot decide a clipped-text check. Preflight flags such a check `visual`; the runner does not ask
+Jev, but saves a full-page `step-N.png` and hands the step to you, the caller, to judge from that picture. A visual
+check is a normal, supported step. Write it whenever looks are what you need to confirm.
+
+jev-browse drives a live page. To judge image files that already exist, such as screenshots from another run or
+a design mock, you need no jev-browse: read them directly.
 
 The runner sends the accessibility tree and checklist text to Cloudflare Workers AI for Jev decisions.
 
@@ -97,9 +101,9 @@ Jev judges; it never generates. So:
 - A check may refer to other steps ("the text saved in step 6"); the whole checklist is in view for checks.
 - Describe elements the way a screen reader would: the button's label, the row's title, the field's label or
   placeholder. Targets come from the accessibility tree.
-- **Check state, not appearance**: "the theme toggle is pressed" or "its label reads Dark mode", not "it shows
-  its moon icon". A check about looks is flagged `visual` and not judged; keep it only when you mean to read the
-  screenshot yourself.
+- **Check state as state, looks as looks**: when a state is in the tree, say so ("the theme toggle is pressed",
+  "its label reads Dark mode") and Jev decides it. When the point is how it looks ("the moon icon replaces the
+  sun", "the long title is not cut off"), write that; the step is handed to you with a full-page screenshot.
 
 ## Reading the result
 
@@ -114,11 +118,11 @@ Live lines while it runs, then a table and a Jev usage line:
 
 - **a=** is how many elements the step's wording says to act on, counted in preflight; the step does exactly that
   many, so it never carries on into the next step's work. A step's quoted values are a floor under the count.
-- **preflight** lines list steps Jev judged un-checkable up front (`transient`, `derived`, `visual`,
-  `external`). They still run, as **advisory**: shown, never decisive. Rewrite them per the rules above. A
-  `visual` check is not sent to Jev at all: it reports `unsupported` with no `c=`, and its `step-N.png` is the
-  only evidence. An advisory `c=` on any other flag is not a finding either: two builds scoring 0.44 and 0.45 say
-  nothing about which is right.
+- **preflight** lines list steps Jev cannot decide from the settled tree (`transient`, `derived`, `visual`,
+  `external`). A `visual` check is not sent to Jev: it reports `for-caller` with no `c=`, and its full-page
+  `step-N.png` is for you to judge. The other flags still run, as **advisory**: shown, never decisive; rewrite
+  them per the rules above. An advisory `c=` is not a finding: two builds scoring 0.44 and 0.45 say nothing about
+  which is right.
 - **c=** is element-choice confidence for an action, yes-probability for a check. Both fail below 0.70. A low
   check score is a confident "no", not uncertainty. A check in the 0.5–0.7 band usually means part of the claim
   is about something the page does not show; reread the wording before blaming the app.
@@ -134,13 +138,19 @@ Live lines while it runs, then a table and a Jev usage line:
 - A failed action names what was clicked and why. Later steps keep running, so read the first failure first; the
   rest may be consequences.
 - The last live line, `[qa] artifacts in <dir>`, names the run's output directory. It always holds
-  `qa-report.json` (every step with kind, status, detail, confidence, elapsed and settle time) and a `step-N.png`
-  for each failed or advisory step.
-- The very last line is the verdict, e.g. `[qa] verdict FAIL: 8 of 9 decisive steps passed (failed: 4);
-  advisory, not decisive: 2, 7`. PASS or FAIL counts decisive steps only, and matches the exit status.
+  `qa-report.json` (every step with kind, status, detail, confidence, elapsed and settle time, and `screenshot`,
+  the absolute path of its `step-N.png` when it has one) and a `step-N.png` for each step that did not pass.
+- The very last line is the verdict, e.g. `[qa] verdict FAIL: 8 of 9 decisive steps passed (failed: 4); for you
+  to judge: 5 → /abs/…/step-5.png; advisory, not decisive: 2, 7`. PASS or FAIL counts decisive steps only, and
+  matches the exit status; it says nothing about the steps listed for you to judge.
 
-Report to the user: the verdict line word for word, each failed step with its detail, and what the screenshots of
-the advisory steps show. Not the whole table. If delegated, have the subagent relay the verdict line verbatim.
+**The run is not finished until you have judged every step the verdict lists for you.** Open each screenshot it
+names (read the image), judge that step's claim against it, and give a pass or fail with what you saw. A subagent
+running the skill does this itself, since it can read images too; it never passes the paths up unjudged.
+
+Report to the user: the verdict line word for word, your judgement of each step listed for you to judge, each
+failed step with its detail, and what the screenshots of the advisory steps show. Not the whole table. If
+delegated, have the subagent relay the verdict line verbatim along with its judgements.
 
 ## Debugging a failure
 

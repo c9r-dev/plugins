@@ -6,7 +6,11 @@ import type { Node } from "./tree";
 import { isUnnamed, nodesOf } from "./tree";
 
 export type StepKind = "click" | "type" | "goto" | "verify" | "other";
-export type StepStatus = "passed" | "failed" | "unsupported";
+/**
+ * `unsupported`: the step asks for something the page cannot do. `for-caller`: a visual claim, captured as a
+ * full-page screenshot for the calling agent to judge, since Jev reads only the accessibility tree.
+ */
+export type StepStatus = "passed" | "failed" | "unsupported" | "for-caller";
 
 /** Why a step cannot be judged from a settled page; `ok` means it can. */
 export type StepFlag = "ok" | "transient" | "derived" | "visual" | "external";
@@ -25,6 +29,8 @@ export type StepResult = {
   flag: StepFlag;
   /** Time spent waiting for spinners, loading grids and the network after this step's actions. */
   settle_ms: number;
+  /** Absolute path of this step's `step-N.png`, when one was taken. */
+  screenshot?: string;
 };
 
 export type QaReport = {
@@ -606,11 +612,11 @@ const performJudged = async (
     case "goto":
       return performGoto(page, context, tree);
     case "verify":
-      /* Jev sees only the accessibility tree, so its score on a visual claim is noise: the screenshot is the evidence. */
+      /* Jev sees only the accessibility tree, so its score on a visual claim is noise: the caller judges the screenshot. */
       return context.flag === "visual"
         ? {
-            status: "unsupported",
-            detail: `visual claim, not judged: the accessibility tree does not show it; judge step-${context.number}.png`,
+            status: "for-caller",
+            detail: "visual claim, handed to the caller with a full-page screenshot",
           }
         : performVerify(page, context, tree);
     default:
@@ -645,17 +651,34 @@ const runStep = async (
   }
 };
 
-/* Written to the test's output directory, so it exists on disk whatever the reporter, and attached by path. */
-const attachScreenshot = async (page: Page, testInfo: TestInfo, name: string) => {
+/*
+ * Written to the test's output directory, so it exists on disk whatever the reporter, and attached by path. Returns
+ * that path, which is absolute. A visual claim can be about anything on the page, so its screenshot is the full page;
+ * any other shows the viewport, which is what the step acted on.
+ */
+const attachScreenshot = async (
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+  fullPage: boolean,
+) => {
   const path = testInfo.outputPath(`${name}.png`);
-  await page.screenshot({ path });
+  await page.screenshot({ path, fullPage });
   await testInfo.attach(name, { path, contentType: "image/png" });
+  return path;
+};
+
+const liveStatus = ({ status, flag }: StepResult) => {
+  if (status === "for-caller") {
+    return "for-caller (visual: for you to judge)";
+  }
+  return flag === "ok" ? status : `${status} (advisory: ${flag})`;
 };
 
 /**
  * Run a natural-language QA checklist against `page`, one line per step. Every step runs even after a failure, since
- * a wrong page makes later verifies fail and that is more informative than stopping. Failed and unsupported steps
- * attach a screenshot to the test.
+ * a wrong page makes later verifies fail and that is more informative than stopping. Every step that did not pass
+ * attaches a screenshot to the test.
  */
 export const runQaSteps = async (
   page: Page,
@@ -685,23 +708,31 @@ export const runQaSteps = async (
       flag: plans[index]?.flag ?? "ok",
     };
     const outcome = await runStep(page, context);
+    const elapsed = Date.now() - started;
+    let screenshot: string | undefined;
+    if (outcome.status !== "passed" || process.env.QA_SCREENSHOTS) {
+      // oxlint-disable-next-line no-await-in-loop
+      screenshot = await attachScreenshot(
+        page,
+        testInfo,
+        `step-${index + 1}`,
+        outcome.status === "for-caller",
+      );
+    }
     const result: StepResult = {
       number: index + 1,
       step,
       ...outcome,
-      elapsed_ms: Date.now() - started,
+      elapsed_ms: elapsed,
       flag: context.flag,
       settle_ms: context.settleMs,
+      screenshot,
     };
     results.push(result);
     /* Live progress: a long checklist is watched from the terminal while it runs. */
     console.log(
-      `[qa] ${result.number} ${result.status}${result.flag === "ok" ? "" : ` (advisory: ${result.flag})`} ${result.kind} ${result.elapsed_ms}ms settle=${result.settle_ms}ms a=${context.actionBudget} c=${result.confidence?.toFixed(2) ?? "-"} ${step.slice(0, 70)} | ${result.detail.slice(0, 100)}`,
+      `[qa] ${result.number} ${liveStatus(result)} ${result.kind} ${result.elapsed_ms}ms settle=${result.settle_ms}ms a=${context.actionBudget} c=${result.confidence?.toFixed(2) ?? "-"} ${step.slice(0, 70)} | ${result.detail.slice(0, 100)}`,
     );
-    if (result.status !== "passed" || process.env.QA_SCREENSHOTS) {
-      // oxlint-disable-next-line no-await-in-loop
-      await attachScreenshot(page, testInfo, `step-${result.number}`);
-    }
   }
   return { steps: results, usage: jevUsage() };
 };
