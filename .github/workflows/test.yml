@@ -13,4 +13,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node --test 'skills/jev-browse/tests/*.test.ts'
+      - run: node --test 'skills/jev-playwright/tests/*.test.ts'

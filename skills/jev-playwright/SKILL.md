@@ -1,9 +1,9 @@
 ---
-name: jev-browse
+name: jev-playwright
 description: Run a natural-language browser QA checklist against a served web app with Playwright and Jev on Cloudflare Workers AI. Use after a user-visible change when browser QA is appropriate, for a PR's QA steps, or to compare two builds. Start from a URL or an app's logged-in e2e fixture. Trigger words include qa check, check the flow, verify the steps, and run the QA steps.
 ---
 
-# jev-browse
+# jev-playwright
 
 Executes a checklist written as plain English, one step per line. Each step is an action (click, type, open a
 URL) or a check ("Confirm …"). Jev picks the element to act on from the page's accessibility tree and judges each
@@ -19,8 +19,8 @@ there, so a tree cannot decide a clipped-text check. Preflight flags such a chec
 Jev, but saves a full-page `step-N.png` and hands the step to you, the caller, to judge from that picture. A visual
 check is a normal, supported step. Write it whenever looks are what you need to confirm.
 
-jev-browse drives a live page. To judge image files that already exist, such as screenshots from another run or
-a design mock, you need no jev-browse: read them directly.
+jev-playwright drives a live page. To judge image files that already exist, such as screenshots from another run or
+a design mock, you need no jev-playwright: read them directly.
 
 The runner sends the accessibility tree and checklist text to Cloudflare Workers AI for Jev decisions.
 
@@ -45,7 +45,7 @@ Anonymous unless `--storage-state <file>` names a Playwright storage-state file 
 (`context.storageState({ path })` after logging in). Runs under a standalone Playwright config.
 
 **`--app NAME`** — starts from an app's own e2e fixture, as defined by a manifest in
-`${XDG_CONFIG_HOME:-~/.config}/jev-browse/apps/`: `NAME.env` + `NAME.spec.ts`. The `.env` is a shell fragment
+`${XDG_CONFIG_HOME:-~/.config}/jev-playwright/apps/`: `NAME.env` + `NAME.spec.ts`. The `.env` is a shell fragment
 setting `E2E_DIR` (the app's e2e directory, relative to the worktree) and `RUN` (the command that runs `qa.spec.ts`
 under the app's Playwright config; it may be wrapped in whatever the machine needs, such as a lock). The spec
 exports one Playwright test that obtains a logged-in `Page` from the app's fixtures and calls
@@ -72,9 +72,9 @@ manifests is the place for anything a caller must know about those apps.
 - **Headless by default**; `--headed` shows the browser. Anything after `--` goes to Playwright.
 - The runner source lives in `runner/` beside this file and is copied into the worktree on every run; edit the
   skill's copy. `--app` copies the engine to `<E2E_DIR>/qa/` and the spec to `<E2E_DIR>/qa.spec.ts`; `--url`
-  copies everything to `<worktree>/.jev-browse/`. The copies are removed when the run ends; add them to the
+  copies everything to `<worktree>/.jev-playwright/`. The copies are removed when the run ends; add them to the
   repo's `.git/info/exclude` to keep them out of `git status` while it runs.
-- Artifacts go to `<output>/<date>-<time>-<pid>/`, where `--output` defaults to `$TMPDIR/jev-browse`: outside the
+- Artifacts go to `<output>/<date>-<time>-<pid>/`, where `--output` defaults to `$TMPDIR/jev-playwright`: outside the
   worktree, so a test run that clears `test-results` cannot delete them.
 
 ## Writing steps
