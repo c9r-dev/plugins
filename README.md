@@ -90,6 +90,12 @@ printf '%s\n' 'Confirm the page shows the "Example Domain" heading' > /tmp/jev-b
 skills/jev-browse/run.sh /tmp/jev-browse-steps.txt --url https://example.com --worktree /path/to/playwright-project
 ```
 
+## Releases
+
+`.claude-plugin/plugin.json` holds the version. Bump it in the pull request that should ship. When that lands on
+`main`, a workflow publishes the GitHub release `vX.Y.Z` for it, with notes generated from the merged pull requests.
+A merge that leaves the version alone publishes nothing.
+
 ## Licence
 
 MIT
