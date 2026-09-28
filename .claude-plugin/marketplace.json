@@ -1,9 +1,9 @@
 {
-  "name": "jev-browse",
+  "name": "jev-playwright",
   "owner": { "name": "cooper667" },
   "plugins": [
     {
-      "name": "jev-browse",
+      "name": "jev-playwright",
       "source": "./",
       "description": "Run a plain-English QA checklist in a real browser, with TypeSafe's Jev judging each step."
     }

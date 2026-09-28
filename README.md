@@ -1,4 +1,4 @@
-# jev-browse
+# jev-playwright
 
 A Claude Code and Codex plugin that runs a checklist written in plain English in a real browser. Each line is
 an action ("Select the Generate Link button", `Type "Acme" into the Name field`) or a check ("Confirm the report
@@ -39,27 +39,47 @@ line lists each such step with its screenshot's path, and the run is finished on
 ### Claude Code
 
 ```text
-/plugin marketplace add cooper667/jev-browse
-/plugin install jev-browse@jev-browse
+/plugin marketplace add cooper667/jev-playwright
+/plugin install jev-playwright@jev-playwright
 ```
 
-Then ask Claude to "qa check" a flow, or invoke the `jev-browse` skill.
+Then ask Claude to "qa check" a flow, or invoke the `jev-playwright` skill.
 
-To update, run `claude plugin update jev-browse@jev-browse`, then restart Claude Code or run `/reload-plugins`. It
-fetches the latest release from GitHub itself, so no `plugin marketplace update` is needed first.
+To update, run `claude plugin update jev-playwright@jev-playwright`, then restart Claude Code or run
+`/reload-plugins`. It fetches the latest release from GitHub itself, so no `plugin marketplace update` is needed
+first.
 
 ### Codex CLI
 
 ```bash
-codex plugin marketplace add cooper667/jev-browse
-codex plugin add jev-browse@jev-browse
+codex plugin marketplace add cooper667/jev-playwright
+codex plugin add jev-playwright@jev-playwright
 ```
 
-Start a new Codex session, then ask it to "qa check" a flow or invoke `$jev-browse`. In the desktop app, add the
-repository as a plugin marketplace and install `jev-browse` from the Plugins Directory. The same package works
+Start a new Codex session, then ask it to "qa check" a flow or invoke `$jev-playwright`. In the desktop app, add the
+repository as a plugin marketplace and install `jev-playwright` from the Plugins Directory. The same package works
 in Claude Code and Codex.
 
-`skills/jev-browse/SKILL.md` is the full guide: how to write steps, read the output and debug a failure.
+`skills/jev-playwright/SKILL.md` is the full guide: how to write steps, read the output and debug a failure.
+
+### Moving from jev-browse
+
+An install under the plugin's former name, `jev-browse`, does not update to `jev-playwright`. In Claude Code,
+remove it and install again:
+
+```text
+/plugin uninstall jev-browse@jev-browse
+/plugin marketplace remove jev-browse
+/plugin marketplace add cooper667/jev-playwright
+/plugin install jev-playwright@jev-playwright
+```
+
+In Codex, reinstall under the new name with the commands above. App manifests live in
+`~/.config/jev-playwright/apps/`, so move any you have:
+
+```bash
+mv ~/.config/jev-browse ~/.config/jev-playwright
+```
 
 ## Requirements
 
@@ -83,15 +103,15 @@ for those operations.
 
 - `--url https://…` opens any page, anonymously or from a Playwright storage-state file (`--storage-state`).
 - `--app NAME` starts from your app's own logged-in e2e fixture. Describe the app once in
-  `~/.config/jev-browse/apps/`: `NAME.env` sets `E2E_DIR` and `RUN`, and `NAME.spec.ts` gets a logged-in page
+  `~/.config/jev-playwright/apps/`: `NAME.env` sets `E2E_DIR` and `RUN`, and `NAME.spec.ts` gets a logged-in page
   from your fixtures and calls `runChecklist`. The skill documents the format.
 
 For a first `--url` check from a repository checkout, with a Playwright project available at
 `/path/to/playwright-project`:
 
 ```bash
-printf '%s\n' 'Confirm the page shows the "Example Domain" heading' > /tmp/jev-browse-steps.txt
-skills/jev-browse/run.sh /tmp/jev-browse-steps.txt --url https://example.com --worktree /path/to/playwright-project
+printf '%s\n' 'Confirm the page shows the "Example Domain" heading' > /tmp/jev-playwright-steps.txt
+skills/jev-playwright/run.sh /tmp/jev-playwright-steps.txt --url https://example.com --worktree /path/to/playwright-project
 ```
 
 ## Releases
