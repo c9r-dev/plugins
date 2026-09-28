@@ -4,6 +4,7 @@ import type { Page, TestInfo } from "@playwright/test";
 
 import type { QaReport, StepResult } from "./runner";
 import { runQaSteps } from "./runner";
+import { isDecisive, verdict } from "./verdict";
 
 /*
  * The rate jev-browser uses for its own estimate (TypeSafe direct, `PRICE_PER_MTOK_IN`). Cloudflare Workers AI bills
@@ -44,30 +45,10 @@ const formatReport = ({ steps, usage }: QaReport) => {
   ].join("\n");
 };
 
-const numbersOf = (steps: StepResult[]) =>
-  steps.map((step) => step.number).join(", ");
-
-/*
- * The one line a caller relays word for word. Advisory and unsupported steps are named apart from the decisive
- * ones, because the run's exit status says nothing about them and they have been misread both ways.
- */
-const verdict = (steps: StepResult[], failed: StepResult[]) => {
-  const decisive = steps.filter(
-    (step) => step.flag === "ok" && step.status !== "unsupported",
-  );
-  const advisory = steps.filter(
-    (step) => step.flag !== "ok" || step.status === "unsupported",
-  );
-  const failures = failed.length > 0 ? ` (failed: ${numbersOf(failed)})` : "";
-  const advisories =
-    advisory.length > 0 ? `; advisory, not decisive: ${numbersOf(advisory)}` : "";
-  return `[qa] verdict ${failed.length === 0 ? "PASS" : "FAIL"}: ${decisive.length - failed.length} of ${decisive.length} decisive steps passed${failures}${advisories}`;
-};
-
 /**
  * Run the checklist named by `QA_STEPS_FILE` (one step per line) against `page`, print the report, attach it to
- * the test, and return the steps that decide the result: failed steps Jev could judge. A flagged step is advisory,
- * so it is reported but never returned.
+ * the test, and return the steps that decide the result: failed steps Jev could judge. A flagged step is advisory
+ * or handed to the caller, so it is reported but never returned.
  */
 export const runChecklist = async (page: Page, testInfo: TestInfo) => {
   const stepsFile = process.env.QA_STEPS_FILE;
@@ -97,9 +78,8 @@ export const runChecklist = async (page: Page, testInfo: TestInfo) => {
     contentType: "application/json",
   });
   console.log(`[qa] artifacts in ${testInfo.outputDir}`);
-  const failed = report.steps.filter(
-    (step) => step.status === "failed" && step.flag === "ok",
+  console.log(verdict(report.steps));
+  return report.steps.filter(
+    (step) => isDecisive(step) && step.status === "failed",
   );
-  console.log(verdict(report.steps, failed));
-  return failed;
 };

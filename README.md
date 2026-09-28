@@ -30,8 +30,9 @@ extension took Claude 14 minutes.
 ```
 
 It is a QA aid, not a test framework: a pass is Jev's judgement, not a locator assertion. Jev reads the
-accessibility tree, never pixels, so checks about layout, overlap or colour are reported as not judged, with a
-screenshot to look at instead.
+accessibility tree, never pixels, so it judges structure and text. A check about layout, overlap, clipping or
+colour is captured as a full-page screenshot and handed to the calling agent, which can see images: the verdict
+line lists each such step with its screenshot's path, and the run is finished once the caller has judged them.
 
 ## Install
 
