@@ -92,14 +92,9 @@ skills/jev-browse/run.sh /tmp/jev-browse-steps.txt --url https://example.com --w
 
 ## Releases
 
-[release-please](https://github.com/googleapis/release-please) keeps a release pull request open against
-`main`. Merging it tags the release as `vX.Y.Z`, publishes a GitHub release and updates `CHANGELOG.md`.
-
-The next version comes from the [Conventional Commits](https://www.conventionalcommits.org/) on `main` since the
-last release: before 1.0.0, `feat:` and breaking changes bump the minor version and `fix:` bumps the patch.
-`docs:`, `chore:`, `ci:` and commits without a type do not trigger a release.
-
-release-please also writes the version into `.claude-plugin/plugin.json`, so do not edit it by hand.
+`.claude-plugin/plugin.json` holds the version. Bump it in the pull request that should ship. When that lands on
+`main`, a workflow publishes the GitHub release `vX.Y.Z` for it, with notes generated from the merged pull requests.
+A merge that leaves the version alone publishes nothing.
 
 ## Licence
 
