@@ -1,5 +1,8 @@
+import { writeFileSync } from "node:fs";
+
 import type { Locator, Page, TestInfo } from "@playwright/test";
 
+import { evidenceFiles, keepsEvidence } from "./evidence";
 import type { ChoiceQuestion, EntryType } from "./jev";
 import { askJev, jevUsage } from "./jev";
 import type { Node } from "./tree";
@@ -31,6 +34,8 @@ export type StepResult = {
   settle_ms: number;
   /** Absolute path of this step's `step-N.png`, when one was taken. */
   screenshot?: string;
+  /** Absolute path of this step's `step-N.aria.yml`, the tree Jev decided the step from, when one was written. */
+  tree?: string;
 };
 
 export type QaReport = {
@@ -59,6 +64,11 @@ type StepContext = {
   settleMs: number;
   /** Preflight verdict for this step. */
   flag: StepFlag;
+  /*
+   * The last tree fetched for this step, which is the one its outcome was decided from: a verify's judged tree, a
+   * refused action's candidates, and for a step of several actions the tree its final choice was made from.
+   */
+  tree?: string;
 };
 
 /*
@@ -543,6 +553,7 @@ const followUpActions = async (page: Page, context: StepContext) => {
     /* An already-filled field is not a candidate, so a second value cannot land in the first field. */
     // oxlint-disable-next-line no-await-in-loop -- each action depends on the page the previous one left
     const tree = await snapshotTree(page);
+    context.tree = tree;
     const nodes = nodesOf(tree).filter(
       (node) =>
         (payload === undefined && isActionable(node)) ||
@@ -632,6 +643,7 @@ const runStep = async (
   try {
     await settle(page, context);
     const tree = await snapshotTree(page);
+    context.tree = tree;
     const judged = await judgeStep(page, context, tree);
     kind = judged.kind;
     const outcome = await performJudged(page, context, judged, tree);
@@ -662,9 +674,17 @@ const attachScreenshot = async (
   name: string,
   fullPage: boolean,
 ) => {
-  const path = testInfo.outputPath(`${name}.png`);
+  const path = testInfo.outputPath(name);
   await page.screenshot({ path, fullPage });
   await testInfo.attach(name, { path, contentType: "image/png" });
+  return path;
+};
+
+/* Beside the screenshot and attached the same way; returns the absolute path. */
+const attachTree = async (testInfo: TestInfo, name: string, tree: string) => {
+  const path = testInfo.outputPath(name);
+  writeFileSync(path, tree);
+  await testInfo.attach(name, { path, contentType: "text/yaml" });
   return path;
 };
 
@@ -678,7 +698,7 @@ const liveStatus = ({ status, flag }: StepResult) => {
 /**
  * Run a natural-language QA checklist against `page`, one line per step. Every step runs even after a failure, since
  * a wrong page makes later verifies fail and that is more informative than stopping. Every step that did not pass
- * attaches a screenshot to the test.
+ * attaches a screenshot and the tree Jev decided it from.
  */
 export const runQaSteps = async (
   page: Page,
@@ -710,14 +730,20 @@ export const runQaSteps = async (
     const outcome = await runStep(page, context);
     const elapsed = Date.now() - started;
     let screenshot: string | undefined;
-    if (outcome.status !== "passed" || process.env.QA_SCREENSHOTS) {
+    let tree: string | undefined;
+    if (keepsEvidence(outcome.status, Boolean(process.env.QA_SCREENSHOTS))) {
+      const files = evidenceFiles(index + 1);
       // oxlint-disable-next-line no-await-in-loop
       screenshot = await attachScreenshot(
         page,
         testInfo,
-        `step-${index + 1}`,
+        files.screenshot,
         outcome.status === "for-caller",
       );
+      if (context.tree !== undefined) {
+        // oxlint-disable-next-line no-await-in-loop
+        tree = await attachTree(testInfo, files.tree, context.tree);
+      }
     }
     const result: StepResult = {
       number: index + 1,
@@ -727,6 +753,7 @@ export const runQaSteps = async (
       flag: context.flag,
       settle_ms: context.settleMs,
       screenshot,
+      tree,
     };
     results.push(result);
     /* Live progress: a long checklist is watched from the terminal while it runs. */
