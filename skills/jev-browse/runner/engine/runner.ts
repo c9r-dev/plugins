@@ -2,6 +2,8 @@ import type { Locator, Page, TestInfo } from "@playwright/test";
 
 import type { ChoiceQuestion, EntryType } from "./jev";
 import { askJev, jevUsage } from "./jev";
+import type { Node } from "./tree";
+import { isUnnamed, nodesOf } from "./tree";
 
 export type StepKind = "click" | "type" | "goto" | "verify" | "other";
 export type StepStatus = "passed" | "failed" | "unsupported";
@@ -110,15 +112,6 @@ const SETTLE_TIMEOUT_MS = 8000;
 /** Visible loading indicators: ARIA progress bars that say they are busy, and data grids showing skeleton rows. */
 const LOADING_SELECTOR =
   '[role="progressbar"][aria-busy="true"]:visible, [data-is-loading="true"]:visible';
-
-type Node = {
-  ref: string;
-  role: string;
-  label: string;
-  disabled: boolean;
-  /** Playwright marks `[cursor=pointer]` on anything the page styles as clickable, whatever its role. */
-  pointer: boolean;
-};
 
 const TYPEABLE_ROLES = new Set(["textbox", "searchbox", "combobox"]);
 
@@ -234,32 +227,6 @@ type Target = {
   confidence: number;
 };
 
-/**
- * One interactive node of the accessibility tree, as Playwright's AI-mode snapshot prints it:
- * `- button "Menu" [ref=e12] [disabled] [cursor=pointer]`. The ref is a locator (`aria-ref=e12`). The label keeps
- * only the role and the accessible name: the bracketed annotations carry momentary state such as `[active]`, so a
- * label that included them would name a different element from one moment to the next.
- */
-/** Every node in the tree that carries a ref, in document order. */
-const nodesOf = (tree: string): Node[] =>
-  [...tree.matchAll(/^\s*- (?<line>[^\n]*?\[ref=(?<ref>[a-z0-9]+)\][^\n]*)$/gm)].map(
-    (match) => {
-      const line = match.groups?.line ?? "";
-      const ref = match.groups?.ref ?? "";
-      const role = /^(?<role>[a-z]+)/.exec(line)?.groups?.role ?? "";
-      return {
-        ref,
-        role,
-        label: line
-          .replace(/\s*\[[^\]]*\]/g, "")
-          .replace(/:$/, "")
-          .trim(),
-        disabled: line.includes("[disabled]"),
-        pointer: line.includes("[cursor=pointer]"),
-      };
-    },
-  );
-
 /*
  * A choice is scored only against the other options, so without a way out Jev picks the least-bad element even when
  * the step names one the page does not have ("Sign up" clicked "Learn more" at 0.88).
@@ -291,9 +258,6 @@ const targetFrom = (
         description: criteria[choice],
         confidence,
       };
-
-/** A node with no accessible name prints as its bare role, or with an empty name: `generic`, `textbox ""`. */
-const isUnnamed = (description: string) => /^[a-z]+(\s+"")?$/.test(description);
 
 /*
  * Refuse a target before acting on it, so a wrong click never leaves later steps on the wrong page. A confident

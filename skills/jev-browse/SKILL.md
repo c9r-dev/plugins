@@ -126,7 +126,8 @@ Live lines while it runs, then a table and a Jev usage line:
   matches the step`), when its target scores below 0.70 (`uncertain target`), or when the target has no
   accessible name (`with no accessible name`): wrong picks score 0.38–0.53, and an unnamed field can score 1.00
   for the wrong field. Nothing is clicked, so later steps fail on the unchanged page rather than a wrong one. An
-  unnamed control is an accessibility bug in the app: name it there, or seed around it.
+  unnamed control is an accessibility bug in the app: name it there, or seed around it. A control whose role takes
+  its name from content, such as a button wrapping a paragraph, is named by that text.
 - **settle=** is time waiting after the step: the network, any visible loading indicator, and then a quarter
   second with no DOM mutation, which is what stops the next step reading a page that has not re-rendered. So
   roughly 260 ms is the floor; a step still loading after 8 s fails. Seconds on a Save deserve a glance.
