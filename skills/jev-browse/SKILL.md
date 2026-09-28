@@ -138,8 +138,9 @@ Live lines while it runs, then a table and a Jev usage line:
 - A failed action names what was clicked and why. Later steps keep running, so read the first failure first; the
   rest may be consequences.
 - The last live line, `[qa] artifacts in <dir>`, names the run's output directory. It always holds
-  `qa-report.json` (every step with kind, status, detail, confidence, elapsed and settle time, and `screenshot`,
-  the absolute path of its `step-N.png` when it has one) and a `step-N.png` for each step that did not pass.
+  `qa-report.json` (every step with kind, status, detail, confidence, elapsed and settle time, and the absolute
+  paths `screenshot` and `tree` of its `step-N.png` and `step-N.aria.yml` when it has them), and both files for
+  each step that did not pass. `step-N.aria.yml` is the exact accessibility tree Jev decided the step from.
 - The very last line is the verdict, e.g. `[qa] verdict FAIL: 8 of 9 decisive steps passed (failed: 4); for you
   to judge: 5 → /abs/…/step-5.png; advisory, not decisive: 2, 7`. PASS or FAIL counts decisive steps only, and
   matches the exit status; it says nothing about the steps listed for you to judge.
@@ -154,10 +155,14 @@ delegated, have the subagent relay the verdict line verbatim along with its judg
 
 ## Debugging a failure
 
-Start with the failed step's `step-N.png` (inspect it with an image viewer) and the `qa-report.json` detail. When
-that is not enough, rerun with recording on:
+Read the failed or handed-over step's `step-N.aria.yml` first: it is the tree Jev saw, the one it chose the element
+or judged the check from (for a step of several actions, the tree of its last choice). If the element the step
+names is missing from it, or is named differently from the step's wording, the fix is the step's wording or the
+page's accessibility, not Jev. Then look at `step-N.png` (inspect it with an image viewer) and the
+`qa-report.json` detail. When that is not enough, rerun with recording on:
 
-- `--screenshots` — a `step-N.png` after every step, so the page state before the failing one is on disk too.
+- `--screenshots` — a `step-N.png` and `step-N.aria.yml` for every step, so the page state before the failing one
+  is on disk too.
 - `--trace` — a Playwright trace (`qa-trace.zip`: DOM snapshot, screenshot and network for every action). Both
   modes. For a person: `node_modules/.bin/playwright show-trace <zip>`. For an agent: unzip it; `trace.trace`
   is newline-delimited JSON with every action and the console and network events, and `resources/` holds the
