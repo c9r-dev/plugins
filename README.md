@@ -45,6 +45,9 @@ line lists each such step with its screenshot's path, and the run is finished on
 
 Then ask Claude to "qa check" a flow, or invoke the `jev-browse` skill.
 
+To update, run `claude plugin update jev-browse@jev-browse`, then restart Claude Code or run `/reload-plugins`. It
+fetches the latest release from GitHub itself, so no `plugin marketplace update` is needed first.
+
 ### Codex CLI
 
 ```bash
