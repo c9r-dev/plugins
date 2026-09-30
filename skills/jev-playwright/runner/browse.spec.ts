@@ -23,7 +23,7 @@ test("QA checklist", async ({ page }, testInfo) => {
   await page.goto(startUrl);
   const failures = await runChecklist(page, testInfo);
   /* `QA_HOLD` hands the page to a person where the checklist left it; the run ends when they close it. */
-  if (process.env.QA_HOLD) {
+  if (process.env.QA_HOLD && !page.isClosed()) {
     test.setTimeout(0);
     await page.waitForEvent("close", { timeout: 0 });
   }
