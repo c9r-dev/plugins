@@ -1,7 +1,7 @@
 {
   "name": "jev-playwright",
   "description": "Run a plain-English QA checklist in a real browser, with TypeSafe's Jev judging each step over Cloudflare Workers AI.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": { "name": "cooper667" },
   "repository": "https://github.com/cooper667/jev-playwright",
   "license": "MIT"
