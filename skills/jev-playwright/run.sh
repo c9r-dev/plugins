@@ -1,6 +1,6 @@
 #!/bin/bash
 # usage:
-#   run.sh <steps-file> --url URL [--storage-state FILE] [--worktree DIR] [--project NAME] [--viewport WxH] [--output DIR] [--headed] [--trace] [--video] [--screenshots] [-- playwright args]
+#   run.sh <steps-file> --url URL [--storage-state FILE] [--worktree DIR] [--project NAME] [--viewport WxH] [--output DIR] [--headed] [--hold] [--trace] [--video] [--screenshots] [-- playwright args]
 #   run.sh <steps-file> --app NAME [--worktree DIR] [--project NAME] [--output DIR] [--headed] [--trace] [--screenshots] [-- playwright args]
 #
 # --url starts from any page with no fixtures; pass a Playwright storage-state file to start logged in. It runs
@@ -13,6 +13,7 @@
 #
 # --project names a Playwright project: Desktop-Chromium (the default), Desktop-Firefox, Desktop-Webkit,
 # Mobile-Chromium, Mobile-Webkit-iPad or Mobile-Webkit-iPhone. Runs headless unless --headed is passed.
+# --hold (--url only) runs headed and leaves the browser where the checklist ended until the page is closed.
 #
 # The skill owns nothing about the target: the caller serves the app, seeds the backend and prepares any session.
 # The runner source lives beside this script and is copied into the worktree for each run, then removed.
@@ -35,6 +36,7 @@ while [ $# -gt 0 ]; do
     --output) output=$2; shift 2 ;;
     --viewport) export QA_VIEWPORT=$2; shift 2 ;;
     --headed) headed=--headed; shift ;;
+    --hold) export QA_HOLD=1; headed=--headed; shift ;;
     --trace) export QA_TRACE=1; shift ;;
     --screenshots) export QA_SCREENSHOTS=1; shift ;;
     --video) export QA_VIDEO=1; shift ;;
@@ -70,6 +72,7 @@ run_then_remove() {
 if [ -n "$app" ]; then
   [ -n "${QA_VIEWPORT:-}" ] && echo "jev-playwright: --viewport applies to --url runs only; --app takes the app config's projects" >&2
   [ -n "${QA_VIDEO:-}" ] && echo "jev-playwright: --video applies to --url runs only; the app fixtures create their own contexts (use --trace)" >&2
+  [ -n "${QA_HOLD:-}" ] && { echo "jev-playwright: --hold applies to --url runs only; an --app run would keep the app's test command, and anything it holds, running while you browse" >&2; exit 2; }
   manifest=$APPS_DIR/$app
   if [ ! -f "$manifest.env" ] || [ ! -f "$manifest.spec.ts" ]; then
     echo "jev-playwright: no app manifest at $manifest.env; add one there, or use --url" >&2

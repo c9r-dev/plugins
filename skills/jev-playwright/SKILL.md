@@ -55,7 +55,7 @@ Without a manifest for `NAME` the script exits 2 and names the path it looked fo
 manifests is the place for anything a caller must know about those apps.
 
 ```bash
-<skill-dir>/run.sh <steps-file> --url https://… [--storage-state FILE] [--worktree DIR] [--project NAME] [--viewport WxH] [--output DIR] [--headed] [--trace] [--video] [--screenshots]
+<skill-dir>/run.sh <steps-file> --url https://… [--storage-state FILE] [--worktree DIR] [--project NAME] [--viewport WxH] [--output DIR] [--headed] [--hold] [--trace] [--video] [--screenshots]
 <skill-dir>/run.sh <steps-file> --app NAME [--worktree DIR] [--project NAME] [--output DIR] [--headed] [--trace] [--screenshots]
 ```
 
@@ -70,6 +70,9 @@ manifests is the place for anything a caller must know about those apps.
   the app's own config defines. In `--url` mode `--viewport 400x900` overrides the device's viewport to check one
   breakpoint.
 - **Headless by default**; `--headed` shows the browser. Anything after `--` goes to Playwright.
+- **`--hold`** (`--url` only) runs headed and, once the checklist ends, leaves the browser where it stopped so a
+  person can carry on by hand, such as on a dialog the steps opened that has no URL of its own. The run ends when
+  they close the page, so it has no time cap: start it in the background. The verdict line prints before the hold.
 - The runner source lives in `runner/` beside this file and is copied into the worktree on every run; edit the
   skill's copy. `--app` copies the engine to `<E2E_DIR>/qa/` and the spec to `<E2E_DIR>/qa.spec.ts`; `--url`
   copies everything to `<worktree>/.jev-playwright/`. The copies are removed when the run ends; add them to the

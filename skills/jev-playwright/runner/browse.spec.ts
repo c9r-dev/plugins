@@ -21,5 +21,11 @@ test("QA checklist", async ({ page }, testInfo) => {
     throw new Error("Set QA_START_URL to the page the checklist starts on");
   }
   await page.goto(startUrl);
-  expect(await runChecklist(page, testInfo)).toEqual([]);
+  const failures = await runChecklist(page, testInfo);
+  /* `QA_HOLD` hands the page to a person where the checklist left it; the run ends when they close it. */
+  if (process.env.QA_HOLD) {
+    test.setTimeout(0);
+    await page.waitForEvent("close", { timeout: 0 });
+  }
+  expect(failures).toEqual([]);
 });
