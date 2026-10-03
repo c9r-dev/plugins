@@ -1,0 +1,8 @@
+{
+  "name": "cpu-lock",
+  "version": "0.1.0",
+  "description": "One CPU-heavy command at a time across every project and worktree: wraps the Bash commands a repo's .claude/cpu-lock gates in the lock, and gives other plugins a bash lexer as $.shell.",
+  "author": { "name": "Craig Cooper" },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}
