@@ -19,6 +19,22 @@ there, so a tree cannot decide a clipped-text check. Preflight flags such a chec
 Jev, but saves a full-page `step-N.png` and hands the step to you, the caller, to judge from that picture. A visual
 check is a normal, supported step. Write it whenever looks are what you need to confirm.
 
+A visual judge can take that work off the caller. Set `QA_VISUAL_JUDGE` to the absolute path of a module whose
+default export is a function of this shape:
+
+```ts
+type VisualJudge = (input: {
+  claim: string; claimNumber: number; checklist: string[];
+  screenshot: Uint8Array; // PNG of the viewport at CSS scale: page.screenshot({ scale: "css" })
+}) => Promise<{ status: "passed" | "for-caller"; detail: string }>;
+```
+
+Export it from the env file (`export QA_VISUAL_JUDGE=…`) or the environment. The runner asks it each visual step.
+A judge can pass the step or hand it back; it can never fail one. When none is set, or it throws, or it returns any
+other status, the step is handed to the caller as before, with the reason in its detail.
+A step it passed reports `passed (visual judge)` and is listed in the verdict line as
+`passed by the visual judge`, apart from the decisive steps; one it handed back is yours to judge as usual.
+
 browser-check drives a live page. To judge image files that already exist, such as screenshots from another run or
 a design mock, you need no browser-check: read them directly.
 
@@ -137,8 +153,8 @@ Live lines while it runs, then a table and a Jev usage line:
 - **a=** is how many elements the step's wording says to act on, counted in preflight; the step does exactly that
   many, so it never carries on into the next step's work. A step's quoted values are a floor under the count.
 - **preflight** lines list steps Jev cannot decide from the settled tree (`transient`, `derived`, `visual`,
-  `external`). A `visual` check is not sent to Jev: it reports `for-caller` with no `c=`, and its full-page
-  `step-N.png` is for you to judge. The other flags still run, as **advisory**: shown, never decisive; rewrite
+  `external`). A `visual` check is not sent to Jev: it goes to the visual judge when one is set, and otherwise
+  reports `for-caller` with no `c=`, its full-page `step-N.png` for you to judge. The other flags still run, as **advisory**: shown, never decisive; rewrite
   them per the rules above. An advisory `c=` is not a finding: two builds scoring 0.44 and 0.45 say nothing about
   which is right.
 - **c=** is element-choice confidence for an action, yes-probability for a check. Both fail below 0.70. A low

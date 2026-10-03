@@ -44,6 +44,14 @@ describe("verdict", () => {
     );
   });
 
+  it("names visual steps the visual judge passed apart from the decisive and advisory ones", () => {
+    const steps = [step(1, {}), step(2, { flag: "visual" }), handedOver(3), step(4, { flag: "transient" })];
+    assert.equal(
+      verdict(steps),
+      "[qa] verdict PASS: 1 of 1 decisive steps passed; for you to judge: 3 → /out/run/step-3.png; passed by the visual judge: 2; advisory, not decisive: 4",
+    );
+  });
+
   it("fails on a decisive step only, never on a step handed to the caller", () => {
     const steps = [step(1, { status: "failed" }), step(2, {}), handedOver(3)];
     assert.equal(

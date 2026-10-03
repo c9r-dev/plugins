@@ -33,6 +33,20 @@ the accessibility tree, never pixels, so it judges structure and text. A check a
 colour is captured as a full-page screenshot and handed to the calling agent, which can see images: the verdict
 line lists each such step with its screenshot's path, and the run is finished once the caller has judged them.
 
+A visual judge can take that work off the caller. Set `QA_VISUAL_JUDGE` to the absolute path of a module whose
+default export is a function of this shape:
+
+```ts
+type VisualJudge = (input: {
+  claim: string; claimNumber: number; checklist: string[];
+  screenshot: Uint8Array; // PNG of the viewport at CSS scale: page.screenshot({ scale: "css" })
+}) => Promise<{ status: "passed" | "for-caller"; detail: string }>;
+```
+
+Export it from the env file (`export QA_VISUAL_JUDGE=…`) or the environment. The runner asks it each visual step.
+A judge can pass the step or hand it back; it can never fail one. When none is set, or it throws, or it returns any
+other status, the step is handed to the caller as before, with the reason in its detail.
+
 ## Install
 
 ### Claude Code
