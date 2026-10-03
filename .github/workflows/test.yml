@@ -13,12 +13,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Install the Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
       - name: Test each plugin
+        env:
+          CLAUDE_CODE_ENABLE_FUNCTION_HOOKS: "1"
         run: |
           failed=""
           for plugin in plugins/*/; do
             echo "::group::$plugin"
-            (cd "$plugin" && node --test) || failed="$failed $plugin"
+            (cd "$plugin" && npm test) || failed="$failed $plugin"
             echo "::endgroup::"
           done
           if [ -n "$failed" ]; then
