@@ -50,8 +50,12 @@ cargo (test|build|clippy|bench|run)( |$)
 The lock itself never reads this file. It is the contract for whatever wraps commands
 automatically.
 
-## Claude Code
+## Wrapping commands automatically (optional)
 
-The `rewrite` plugin of claude-mods (not yet published) wraps every Bash call whose command
-matches the repo's `.claude/cpu-lock` in `~/.claude/scripts/cpu-lock.sh`, and tells Claude when the
-call will queue. It needs `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`.
+The lock works on its own: whatever runs through `cpu-lock.sh` takes its turn. To have an agent's
+commands take the lock without being told, put something in front of its shell that prefixes
+matching commands with `cpu-lock.sh`, reading the patterns from the repo's `.claude/cpu-lock`.
+
+In Claude Code that is a `PreToolUse` hook on `Bash` that returns the wrapped command as
+`hookSpecificOutput.updatedInput.command`. Claude Code applies it to subagents' calls too. A hook
+that only denies an unwrapped command works as well, at the cost of a retry per command.
