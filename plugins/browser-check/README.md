@@ -131,7 +131,7 @@ For a first `--url` check from a repository checkout, with a Playwright project 
 `/path/to/playwright-project`:
 
 ```bash
-printf '%s\n' 'Confirm the page shows the "Example Domain" heading' > /tmp/browser-check-steps.txt
+printf '%s\n' 'Confirm the page shows a "Learn more" link' > /tmp/browser-check-steps.txt
 plugins/browser-check/skills/browser-check/run.sh /tmp/browser-check-steps.txt --url https://example.com --worktree /path/to/playwright-project
 ```
 
