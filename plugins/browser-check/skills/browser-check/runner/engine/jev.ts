@@ -1,7 +1,7 @@
 /*
- * Minimal client for TypeSafe's Jev judgment model, served through Cloudflare Workers AI. Jev answers two question
- * shapes: a yes/no probability ("noul") and a pick-one-label "choice". A request bundles any JSON `state` with a
- * record of named questions; the answers come back keyed by the same names.
+ * Minimal client for TypeSafe's Jev judgment model, through Cloudflare Workers AI or TypeSafe's own API. Jev answers
+ * two question shapes: a yes/no probability ("noul") and a pick-one-label "choice". A request bundles any JSON `state`
+ * with a record of named questions; the answers come back keyed by the same names.
  */
 
 /** Any JSON value Jev accepts as instructions or criteria text. */
@@ -68,60 +68,121 @@ const totals = { calls: 0, input_tokens: 0, output_tokens: 0 };
 /** Running totals across every `askJev` call in this process, for the run report. */
 export const jevUsage = () => ({ ...totals });
 
-const credentials = () => {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const token = process.env.CLOUDFLARE_API_TOKEN;
-  if (!accountId || !token) {
+export type RouteName = "cloudflare" | "typesafe";
+
+type Env = Record<string, string | undefined>;
+
+/**
+ * Where Jev calls go: Cloudflare Workers AI when its credentials are set, TypeSafe's own API when its key is. With
+ * both, `JEV_ROUTE` decides, since either could be the one meant.
+ */
+export const chooseRoute = (env: Env): RouteName => {
+  const configured: RouteName[] = [];
+  if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) {
+    configured.push("cloudflare");
+  }
+  if (env.TYPESAFE_API_KEY) {
+    configured.push("typesafe");
+  }
+  const chosen = env.JEV_ROUTE;
+  if (chosen) {
+    if (chosen !== "cloudflare" && chosen !== "typesafe") {
+      throw new Error(`JEV_ROUTE must be cloudflare or typesafe, not ${chosen}`);
+    }
+    if (!configured.includes(chosen)) {
+      throw new Error(
+        chosen === "cloudflare"
+          ? "JEV_ROUTE=cloudflare needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN"
+          : "JEV_ROUTE=typesafe needs TYPESAFE_API_KEY",
+      );
+    }
+    return chosen;
+  }
+  if (configured.length === 2) {
     throw new Error(
-      "Jev needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in the environment",
+      "Both Cloudflare and TypeSafe credentials are set; set JEV_ROUTE=cloudflare or JEV_ROUTE=typesafe",
     );
   }
+  if (configured.length === 0) {
+    throw new Error(
+      "Jev needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, or TYPESAFE_API_KEY, in the environment",
+    );
+  }
+  return configured[0]!;
+};
+
+type Request = { url: string; headers: Record<string, string>; body: unknown };
+
+const requestFor = (route: RouteName, env: Env, input: { state: unknown; questions: unknown }): Request => {
+  if (route === "typesafe") {
+    return {
+      url: "https://api.typesafe.ai/v1/systemone",
+      headers: { Authorization: `Bearer ${env.TYPESAFE_API_KEY}` },
+      body: { model: "jev-latest", ...input },
+    };
+  }
   /* Names the AI Gateway to route through, so a gateway on Unified billing pays from its credit. */
-  const gateway = process.env.CLOUDFLARE_AI_GATEWAY;
-  return { accountId, token, gateway };
+  const gateway = env.CLOUDFLARE_AI_GATEWAY;
+  return {
+    url: `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/ai/run`,
+    headers: {
+      Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+      ...(gateway ? { "cf-aig-gateway-id": gateway } : {}),
+    },
+    body: { model: "typesafe/jev", input },
+  };
+};
+
+/** The answers and usage from a route's response body; throws when the call failed or carries no answers. */
+const runFrom = <Qs extends Record<string, Question>>(
+  route: RouteName,
+  response: Response,
+  body: unknown,
+): RunResult<Qs> => {
+  if (route === "typesafe") {
+    const run = body as Partial<RunResult<Qs>>;
+    if (!response.ok || !run.answers) {
+      throw new Error(`Jev request failed: HTTP ${response.status}: ${JSON.stringify(body).slice(0, 300)}`);
+    }
+    return run as RunResult<Qs>;
+  }
+  const envelope = body as Envelope<Qs>;
+  if (!response.ok || envelope.success === false) {
+    throw new Error(
+      `Jev request failed: ${JSON.stringify(envelope.errors ?? envelope).slice(0, 300)}`,
+    );
+  }
+  const runState = envelope.result?.state;
+  if (typeof runState === "string" && runState !== "Completed") {
+    throw new Error(`Jev run did not complete: state ${runState}`);
+  }
+  const run = envelope.result?.result;
+  if (!run?.answers) {
+    throw new Error(
+      `Jev response has no answers: ${JSON.stringify(envelope).slice(0, 300)}`,
+    );
+  }
+  return run;
 };
 
 /**
  * Ask Jev one or more questions about `state`. The answer record has the same keys as `questions`, with each
- * answer typed from its question. Throws on a transport, envelope or credential failure.
+ * answer typed from its question. Throws on a transport, response or credential failure.
  */
 export const askJev = async <Qs extends Record<string, Question>>(
   state: unknown,
   questions: Qs,
 ): Promise<RunResult<Qs>> => {
-  const { accountId, token, gateway } = credentials();
+  const env = process.env;
+  const route = chooseRoute(env);
+  const request = requestFor(route, env, { state, questions });
   const started = Date.now();
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        ...(gateway ? { "cf-aig-gateway-id": gateway } : {}),
-      },
-      body: JSON.stringify({
-        model: "typesafe/jev",
-        input: { state, questions },
-      }),
-    },
-  );
-  const body = (await response.json()) as Envelope<Qs>;
-  if (!response.ok || body.success === false) {
-    throw new Error(
-      `Jev request failed: ${JSON.stringify(body.errors ?? body).slice(0, 300)}`,
-    );
-  }
-  const runState = body.result?.state;
-  if (typeof runState === "string" && runState !== "Completed") {
-    throw new Error(`Jev run did not complete: state ${runState}`);
-  }
-  const run = body.result?.result;
-  if (!run?.answers) {
-    throw new Error(
-      `Jev response has no answers: ${JSON.stringify(body).slice(0, 300)}`,
-    );
-  }
+  const response = await fetch(request.url, {
+    method: "POST",
+    headers: { ...request.headers, "Content-Type": "application/json" },
+    body: JSON.stringify(request.body),
+  });
+  const run = runFrom<Qs>(route, response, await response.json());
   totals.calls += 1;
   console.log(
     `[jev] ${Object.keys(questions).join(",")} ${Date.now() - started}ms ${JSON.stringify(state).length}B`,

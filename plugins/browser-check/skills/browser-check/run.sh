@@ -47,7 +47,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "browser-check: $ENV_FILE not found; it must export CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN" >&2
+  echo "browser-check: $ENV_FILE not found; it must export CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, or TYPESAFE_API_KEY" >&2
   exit 2
 fi
 # shellcheck disable=SC1090

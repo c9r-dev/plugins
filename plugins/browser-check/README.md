@@ -101,26 +101,31 @@ mv ~/.config/jev-browse ~/.config/browser-check
 
 ## Requirements
 
-- **A Cloudflare account with Workers AI access**, where the judgment model (TypeSafe's Jev, `typesafe/jev`) runs,
-  and an API token that can run Workers AI models. Put both in `~/.config/jev/env` (or a file named by
-  `$JEV_ENV_FILE`):
+- **Access to the judgment model, TypeSafe's Jev**, through Cloudflare Workers AI or TypeSafe's own API. Put the
+  credentials for either in `~/.config/jev/env` (or a file named by `$JEV_ENV_FILE`):
 
   ```bash
+  # Cloudflare Workers AI (model typesafe/jev): an account with Workers AI access and a token that can run it
   export CLOUDFLARE_ACCOUNT_ID=…
   export CLOUDFLARE_API_TOKEN=…
   export CLOUDFLARE_AI_GATEWAY=default   # optional: route through this AI Gateway
+
+  # TypeSafe's API (model jev-latest)
+  export TYPESAFE_API_KEY=…
+
+  export JEV_ROUTE=typesafe              # only when both are set: cloudflare or typesafe
   ```
 
-  With `CLOUDFLARE_AI_GATEWAY` set, every call carries `cf-aig-gateway-id`. A gateway on Unified billing then pays
-  from its prepaid credit rather than the account's free daily allocation.
+  With `CLOUDFLARE_AI_GATEWAY` set, every Cloudflare call carries `cf-aig-gateway-id`. A gateway on Unified billing
+  then pays from its prepaid credit rather than the account's free daily allocation.
 
 - **Playwright 1.59 or newer and a browser, already installed.** The plugin uses yours and never installs or pins
   either: the checkout's or a global `@playwright/test`, and Playwright's own browser build, or for Chromium your
   installed Google Chrome. When one is missing, the run stops with the command that fixes it.
 - **The app already served** at the URL the run will hit. The plugin never starts servers or seeds data.
 
-The runner sends the page's accessibility tree and checklist text to Cloudflare Workers AI for the model's
-decisions. Codex must be able to execute Playwright locally and reach Cloudflare's API; its sandbox may request
+The runner sends the page's accessibility tree and checklist text to the chosen route for the model's decisions.
+Codex must be able to execute Playwright locally and reach that API; its sandbox may request
 permission for those operations.
 
 ## Two ways to start
