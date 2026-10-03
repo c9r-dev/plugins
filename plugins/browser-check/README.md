@@ -28,8 +28,8 @@ extension took Claude 14 minutes.
 [qa] verdict PASS: 8 of 8 decisive steps passed
 ```
 
-It is a QA aid, not a test framework: a pass is Jev's judgement, not a locator assertion. Jev reads the
-accessibility tree, never pixels, so it judges structure and text. A check about layout, overlap, clipping or
+It is a QA aid, not a test framework: a pass is the model's judgement, not a locator assertion. The model reads
+the accessibility tree, never pixels, so it judges structure and text. A check about layout, overlap, clipping or
 colour is captured as a full-page screenshot and handed to the calling agent, which can see images: the verdict
 line lists each such step with its screenshot's path, and the run is finished once the caller has judged them.
 
@@ -104,8 +104,8 @@ mv ~/.config/jev-browse ~/.config/browser-check
 ## Requirements
 
 - **A Cloudflare account with Workers AI access**, where the judgment model (TypeSafe's Jev, `typesafe/jev`) runs,
-  and an API token that can run Workers AI models. Put both in
-  `~/.config/jev/env` (or a file named by `$JEV_ENV_FILE`):
+  and an API token that can run Workers AI models. Put both in `~/.config/jev/env` (or a file named by
+  `$JEV_ENV_FILE`):
 
   ```bash
   export CLOUDFLARE_ACCOUNT_ID=…
@@ -116,7 +116,8 @@ mv ~/.config/jev-browse ~/.config/browser-check
   afterwards; `--worktree` names it.
 - **The app already served** at the URL the run will hit. The plugin never starts servers or seeds data.
 
-The runner sends the page's accessibility tree and checklist text to Cloudflare Workers AI for Jev decisions.
+The runner sends the page's accessibility tree and checklist text to Cloudflare Workers AI for the model's
+decisions.
 Codex must be able to execute Playwright locally and reach Cloudflare's API; its sandbox may request permission
 for those operations.
 
@@ -125,7 +126,7 @@ for those operations.
 - `--url https://…` opens any page, anonymously or from a Playwright storage-state file (`--storage-state`).
 - `--app NAME` starts from your app's own logged-in e2e fixture. Describe the app once in
   `~/.config/browser-check/apps/`: `NAME.env` sets `E2E_DIR` and `RUN`, and `NAME.spec.ts` gets a logged-in page
-  from your fixtures and calls `runChecklist`. The skill documents the format.
+  from your fixtures and calls `runChecklist`. [SKILL.md](skills/browser-check/SKILL.md) documents the format.
 
 For a first `--url` check from a repository checkout, with a Playwright project available at
 `/path/to/playwright-project`:
