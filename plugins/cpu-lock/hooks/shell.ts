@@ -29,7 +29,7 @@ export function parse(command: string): ShellParse {
   }
 }
 
-const CONTROL_OPERATORS = ["&&", "||", ";;", ";", "|&", "|", "&", "\n"] as const;
+const CONTROL_OPERATORS = ["&&", "||", ";;", ";", "|&", "|", "&"] as const;
 
 /**
  * Shell keywords that introduce a command rather than being one. `commandWord` looks past them so
@@ -167,10 +167,16 @@ function matchParen(source: string, open: number): number {
   throw new ShellParseError("unterminated command substitution");
 }
 
-const REDIRECT = /^(?:[0-9]+)?(?:&>>|&>|>>|>\||<<<|<<-|<<|<>|>&|<&|>|<)/;
+const REDIRECT = /(?:[0-9]+)?(?:&>>|&>|>>|>\||<<<|<<-|<<|<>|>&|<&|>|<)/y;
 
 /** A redirection that names its target inside itself, so no following word belongs to it. */
-const SELF_CONTAINED_REDIRECT = /^(?:[0-9]+)?(?:>&|<&)(?:[0-9]+|-)/;
+const SELF_CONTAINED_REDIRECT = /(?:[0-9]+)?(?:>&|<&)(?:[0-9]+|-)/y;
+
+/** `pattern`, a sticky regex, matched at `at` in `source`. */
+function matchAt(pattern: RegExp, source: string, at: number): RegExpExecArray | null {
+  pattern.lastIndex = at;
+  return pattern.exec(source);
+}
 
 type HeredocPending = { readonly tag: string; readonly stripTabs: boolean };
 
@@ -191,7 +197,7 @@ function tokenize(command: string): readonly Token[] {
     }
 
     if (c === "\n") {
-      tokens.push(operatorToken(i, "\n"));
+      tokens.push(literalToken("operator", i, "\n"));
       i += 1;
       i = consumeHeredocBodies(command, i, pendingHeredocs, tokens);
       expectRedirectTarget = false;
@@ -211,51 +217,30 @@ function tokenize(command: string): readonly Token[] {
       continue;
     }
 
-    const redirect = expectRedirectTarget ? null : REDIRECT.exec(command.slice(i));
+    const redirect = expectRedirectTarget ? null : matchAt(REDIRECT, command, i);
     if (redirect !== null) {
       const op = redirect[0];
       if (op.startsWith("<<") && !op.startsWith("<<<")) {
         i = readHeredocOperator(command, i, op, tokens, pendingHeredocs);
         continue;
       }
-      const whole = SELF_CONTAINED_REDIRECT.exec(command.slice(i));
-      if (whole !== null) {
-        const text = whole[0];
-        tokens.push({
-          kind: "redirect",
-          text,
-          start: i,
-          end: i + text.length,
-          value: text,
-          quoted: false,
-          expands: false,
-        });
-        i += text.length;
-        continue;
-      }
-      tokens.push({
-        kind: "redirect",
-        text: op,
-        start: i,
-        end: i + op.length,
-        value: op,
-        quoted: false,
-        expands: false,
-      });
-      i += op.length;
-      expectRedirectTarget = true;
+      const whole = matchAt(SELF_CONTAINED_REDIRECT, command, i);
+      const text = whole?.[0] ?? op;
+      tokens.push(literalToken("redirect", i, text));
+      i += text.length;
+      expectRedirectTarget = whole === null;
       continue;
     }
 
-    const control = CONTROL_OPERATORS.find((op) => op !== "\n" && command.startsWith(op, i));
+    const control = CONTROL_OPERATORS.find((op) => command.startsWith(op, i));
     if (control !== undefined && !expectRedirectTarget) {
-      tokens.push(operatorToken(i, control));
+      tokens.push(literalToken("operator", i, control));
       i += control.length;
       continue;
     }
 
     if ((c === "(" || c === ")") && !expectRedirectTarget) {
-      tokens.push(operatorToken(i, c));
+      tokens.push(literalToken("operator", i, c));
       i += 1;
       continue;
     }
@@ -271,9 +256,10 @@ function tokenize(command: string): readonly Token[] {
   return tokens;
 }
 
-function operatorToken(start: number, text: string): Token {
+/** A token whose value is its text: an operator, or a redirection with nothing quoted in it. */
+function literalToken(kind: "operator" | "redirect", start: number, text: string): Token {
   return {
-    kind: "operator",
+    kind,
     text,
     start,
     end: start + text.length,
@@ -319,8 +305,8 @@ function consumeHeredocBodies(
   while (pending.length > 0) {
     const doc = pending.shift() as HeredocPending;
     const start = i;
-    let end = -1;
-    while (i <= command.length) {
+    let end: number;
+    for (;;) {
       const lineEnd = command.indexOf("\n", i);
       const line = command.slice(i, lineEnd === -1 ? command.length : lineEnd);
       const compared = doc.stripTabs ? line.replace(/^\t+/, "") : line;
@@ -332,7 +318,6 @@ function consumeHeredocBodies(
       if (lineEnd === -1) throw new ShellParseError("unterminated heredoc");
       i = lineEnd + 1;
     }
-    if (end === -1) throw new ShellParseError("unterminated heredoc");
     const text = command.slice(start, end);
     tokens.push({
       kind: "heredoc",
@@ -354,7 +339,6 @@ function segments(command: string): readonly Segment[] {
   let current: Token[] = [];
 
   const flush = (terminator?: Token): void => {
-    if (current.length === 0 && terminator === undefined) return;
     const first = current[0];
     const last = current[current.length - 1];
     if (first === undefined || last === undefined) return;
