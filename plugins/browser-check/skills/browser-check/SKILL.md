@@ -38,7 +38,7 @@ steps; one it handed back is yours to judge as usual.
 browser-check drives a live page. To judge image files that already exist, such as screenshots from another run or
 a design mock, you need no browser-check: read them directly.
 
-The runner sends the accessibility tree and checklist text to Cloudflare Workers AI for Jev decisions.
+The runner sends the accessibility tree and checklist text to the chosen route (Cloudflare or TypeSafe) for Jev decisions.
 
 ## The skill runs steps. The caller owns the target.
 
@@ -50,9 +50,10 @@ Before calling it, the caller has already made sure that:
 
 The skill checks none of that. A run against the wrong build passes or fails on that build.
 
-Its one dependency of its own: a file exporting `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for an account
-with Workers AI access, at `$JEV_ENV_FILE` or `~/.config/jev/env`. If that file is missing, ask the user; never search
-for credentials. An optional `CLOUDFLARE_AI_GATEWAY` in it routes every call through that AI Gateway.
+Its one dependency of its own: a file at `$JEV_ENV_FILE` or `~/.config/jev/env` exporting credentials for Jev,
+either `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (Cloudflare Workers AI; an optional `CLOUDFLARE_AI_GATEWAY`
+routes through that AI Gateway) or `TYPESAFE_API_KEY` (TypeSafe's own API). With both, `JEV_ROUTE=cloudflare` or
+`JEV_ROUTE=typesafe` picks one. If the file is missing, ask the user; never search for credentials.
 
 It uses the Playwright and browser already on the machine; it never installs or pins either:
 
