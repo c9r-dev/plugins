@@ -43,6 +43,9 @@ On 32 hand-labelled visual claims it agreed with the label 96.9% of the time and
 Installing it is the whole setup in Claude Code: a session hook points browser-check at it. Needs a Cloudflare
 account with Workers AI access.
 
+- [cpu-lock](plugins/cpu-lock/README.md) — one CPU-heavy command at a time across every project and worktree on a
+  Mac, for the commands each repo's `.claude/cpu-lock` gates. Claude Code only, macOS only.
+
 ## Releases
 
 Each plugin is versioned by its own `plugins/<name>/.claude-plugin/plugin.json`. Bump it in the pull request that

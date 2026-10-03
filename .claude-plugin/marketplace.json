@@ -14,6 +14,11 @@
       "name": "browser-check-visual",
       "source": "./plugins/browser-check-visual",
       "description": "Judge browser-check's visual steps (layout, colour, clipping, icons) from a screenshot with a vision judgment model."
+    },
+    {
+      "name": "cpu-lock",
+      "source": "./plugins/cpu-lock",
+      "description": "Claude Code only, macOS: one CPU-heavy command at a time across every project and worktree, gated by each repo's .claude/cpu-lock, and a bash lexer for other plugins as $.shell."
     }
   ]
 }
