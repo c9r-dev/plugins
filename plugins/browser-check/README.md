@@ -28,24 +28,14 @@ extension took Claude 14 minutes.
 [qa] verdict PASS: 8 of 8 decisive steps passed
 ```
 
-It is a QA aid, not a test framework: a pass is the model's judgement, not a locator assertion. The model reads
-the accessibility tree, never pixels, so it judges structure and text. A check about layout, overlap, clipping or
-colour is captured as a full-page screenshot and handed to the calling agent, which can see images: the verdict
-line lists each such step with its screenshot's path, and the run is finished once the caller has judged them.
+It is a QA aid, not a merge gate: a pass is the model's judgement at ≥ 0.7 probability, not a locator assertion.
+The model reads the accessibility tree, never pixels, so it judges structure and text. A check about layout,
+overlap, clipping or colour goes to a visual judge when one is configured (`QA_VISUAL_JUDGE`), which can pass it
+from a screenshot; otherwise it is handed to the calling agent with a full-page screenshot, and the run is finished
+once the caller has judged it.
 
-A visual judge can take that work off the caller. Set `QA_VISUAL_JUDGE` to the absolute path of a module whose
-default export is a function of this shape:
-
-```ts
-type VisualJudge = (input: {
-  claim: string; claimNumber: number; checklist: string[];
-  screenshot: Uint8Array; // PNG of the viewport at CSS scale: page.screenshot({ scale: "css" })
-}) => Promise<{ status: "passed" | "for-caller"; detail: string }>;
-```
-
-Export it from the env file (`export QA_VISUAL_JUDGE=…`) or the environment. The runner asks it each visual step.
-A judge can pass the step or hand it back; it can never fail one. When none is set, or it throws, or it returns any
-other status, the step is handed to the caller as before, with the reason in its detail.
+[`skills/browser-check/SKILL.md`](skills/browser-check/SKILL.md) is the full guide: requirements in detail, how to
+write steps, read the output, plug in a visual judge and debug a failure.
 
 ## Install
 
@@ -72,9 +62,6 @@ codex plugin add browser-check@c9r
 Start a new Codex session, then ask it to "qa check" a flow or invoke `$browser-check`. In the desktop app, add the
 repository as a plugin marketplace and install `browser-check` from the Plugins Directory. The same package works
 in Claude Code and Codex.
-
-[`skills/browser-check/SKILL.md`](skills/browser-check/SKILL.md) is the full guide: how to write steps, read the
-output and debug a failure.
 
 ### Moving from jev-playwright
 
@@ -123,29 +110,21 @@ mv ~/.config/jev-browse ~/.config/browser-check
   export CLOUDFLARE_API_TOKEN=…
   ```
 
-- **Playwright 1.59 or newer, already installed.** The plugin never installs or pins one; it uses yours.
-  - `--app` runs under the app's own Playwright, which its fixtures import.
-  - `--url` uses the `@playwright/test` that the checkout resolves (the current directory, or `--worktree`), else
-    the one behind `playwright` on your `PATH`. With neither, the run stops and says how to install one. Older
-    than 1.59 is refused: the runner reads pages with `ariaSnapshot({ mode: "ai" })`, added in 1.59.
-- **A browser, already installed.** For `--url` Chromium projects: Playwright's own Chromium for that version if it
-  is installed, else your installed Google Chrome (`channel: "chrome"`: a separate instance with a fresh temporary
-  profile, never your own). With neither, the run stops with the one command to run
-  (`npx playwright@<version> install chromium`). Firefox and WebKit projects need Playwright's own builds; without
-  them the run stops with their install command.
+- **Playwright 1.59 or newer and a browser, already installed.** The plugin uses yours and never installs or pins
+  either: the checkout's or a global `@playwright/test`, and Playwright's own browser build, or for Chromium your
+  installed Google Chrome. When one is missing, the run stops with the command that fixes it.
 - **The app already served** at the URL the run will hit. The plugin never starts servers or seeds data.
 
 The runner sends the page's accessibility tree and checklist text to Cloudflare Workers AI for the model's
-decisions.
-Codex must be able to execute Playwright locally and reach Cloudflare's API; its sandbox may request permission
-for those operations.
+decisions. Codex must be able to execute Playwright locally and reach Cloudflare's API; its sandbox may request
+permission for those operations.
 
 ## Two ways to start
 
 - `--url https://…` opens any page, anonymously or from a Playwright storage-state file (`--storage-state`).
 - `--app NAME` starts from your app's own logged-in e2e fixture. Describe the app once in
   `~/.config/browser-check/apps/`: `NAME.env` sets `E2E_DIR` and `RUN`, and `NAME.spec.ts` gets a logged-in page
-  from your fixtures and calls `runChecklist`. [SKILL.md](skills/browser-check/SKILL.md) documents the format.
+  from your fixtures and calls `runChecklist`. SKILL.md documents the format.
 
 For a first `--url` check from a repository checkout, with Playwright installed in
 `/path/to/playwright-project` (or globally):
