@@ -83,6 +83,40 @@ kill_tree() {
   for p in $pids; do kill -KILL "$p" 2>/dev/null; done
 }
 
+# Stops one queued or running run by the pid its record names, with everything under it. Only a pid
+# that is a current holder or waiter is accepted, so this can never kill an unrelated process.
+if [ "${1-}" = "--cancel" ]; then
+  pid="${2-}"
+  if [ -n "$pid" ] && [ -f "$WAITERS/$pid" ]; then
+    kill_tree "$pid"
+    rm -f "$WAITERS/$pid"
+    echo "cpu-lock: cancelled queued run $pid"
+  elif [ -n "$pid" ] && [ "$(field "$HOLDER" pid)" = "$pid" ]; then
+    kill_tree "$pid"
+    echo "cpu-lock: stopped running run $pid"
+  else
+    echo "cpu-lock: $pid is not a queued or running cpu-lock run" >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+# The checkout's branch, empty on a detached HEAD.
+branch=$(git branch --show-current 2>/dev/null)
+
+# Writes the record of this run to $1: its pid, checkout, branch, start and the command in $2...
+write_record() {
+  local file="$1"; shift
+  {
+    echo "pid:      $$"
+    echo "worktree: $PWD"
+    echo "branch:   ${branch:-?}"
+    echo "started:  $(date '+%H:%M:%S')"
+    echo "command:  $*"
+    echo "session:  ${CLAUDE_CODE_SESSION_ID-}"
+  } >"$file" 2>/dev/null
+}
+
 # Second entry, now inside the critical section: record the holder, run, clean up.
 if [ "${1-}" = "--held" ]; then
   shift
@@ -90,20 +124,11 @@ if [ "${1-}" = "--held" ]; then
   rm -f "$WAITERS/$waiter_pid"
   budget=${CPU_LOCK_MAX:-0}
 
-  {
-    echo "pid:      $$"
-    echo "worktree: $PWD"
-    echo "branch:   $(git branch --show-current 2>/dev/null || echo '?')"
-    echo "started:  $(date '+%H:%M:%S')"
-    echo "epoch:    $(date +%s)"
-    echo "budget:   $budget"
-    echo "command:  $*"
-    echo "session:  ${CLAUDE_CODE_SESSION_ID-}"
-  } >"$HOLDER" 2>/dev/null
+  write_record "$HOLDER" "$@"
+  { echo "epoch:    $(date +%s)"; echo "budget:   $budget"; } >>"$HOLDER" 2>/dev/null
   trap 'rm -f "$HOLDER"' EXIT
   # Name the checkout up front: a Bash call's cwd resets to the session's own directory, and a run
   # from the wrong checkout tests that checkout's code and passes with no error.
-  branch=$(git branch --show-current 2>/dev/null)
   echo "cpu-lock: running in $(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD") on ${branch:-a detached HEAD}" >&2
   [ "$budget" -gt 0 ] && echo "cpu-lock: budget ${budget}s (CPU_LOCK_MAX)" >&2
 
@@ -124,37 +149,12 @@ if [ "${1-}" = "--held" ]; then
   exit "$rc"
 fi
 
-# Stops one queued or running run by the pid its record names, with everything under it. Only a pid
-# that is a current holder or waiter is accepted, so this can never kill an unrelated process.
-if [ "${1-}" = "--cancel" ]; then
-  pid="${2-}"
-  if [ -n "$pid" ] && [ -f "$WAITERS/$pid" ]; then
-    kill_tree "$pid"
-    rm -f "$WAITERS/$pid"
-    echo "cpu-lock: cancelled queued run $pid"
-  elif [ -n "$pid" ] && [ "$(field "$HOLDER" pid)" = "$pid" ]; then
-    kill_tree "$pid"
-    echo "cpu-lock: stopped running run $pid"
-  else
-    echo "cpu-lock: $pid is not a queued or running cpu-lock run" >&2
-    exit 1
-  fi
-  exit 0
-fi
-
 [ $# -gt 0 ] || { echo "usage: cpu-lock.sh <command> [args...] | --status | --cancel <pid>" >&2; exit 64; }
 mkdir -p "$LOCK_DIR" "$WAITERS"
 
 # Register as a waiter before queueing, so --status can show the whole queue. The record is
 # removed on acquisition; if this process is killed first, --status prunes it by liveness.
-{
-  echo "pid:      $$"
-  echo "worktree: $PWD"
-  echo "branch:   $(git branch --show-current 2>/dev/null || echo '?')"
-  echo "started:  $(date '+%H:%M:%S')"
-  echo "command:  $*"
-  echo "session:  ${CLAUDE_CODE_SESSION_ID-}"
-} >"$WAITERS/$$" 2>/dev/null
+write_record "$WAITERS/$$" "$@"
 
 # Probe without waiting, purely so a queued run can say what it is queued behind.
 if ! /usr/bin/lockf -k -t 0 "$LOCK" true 2>/dev/null; then
