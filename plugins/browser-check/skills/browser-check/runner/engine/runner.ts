@@ -7,11 +7,13 @@ import type { ChoiceQuestion, EntryType } from "./jev";
 import { askJev, jevUsage } from "./jev";
 import type { Node } from "./tree";
 import { isUnnamed, nodesOf } from "./tree";
+import { judgeVisually } from "./visual";
 
 export type StepKind = "click" | "type" | "goto" | "verify" | "other";
 /**
  * `unsupported`: the step asks for something the page cannot do. `for-caller`: a visual claim, captured as a
- * full-page screenshot for the calling agent to judge, since Jev reads only the accessibility tree.
+ * full-page screenshot for the calling agent to judge, since Jev reads only the accessibility tree. A visual claim
+ * is `passed` only by the visual judge, when one is configured.
  */
 export type StepStatus = "passed" | "failed" | "unsupported" | "for-caller";
 
@@ -623,12 +625,13 @@ const performJudged = async (
     case "goto":
       return performGoto(page, context, tree);
     case "verify":
-      /* Jev sees only the accessibility tree, so its score on a visual claim is noise: the caller judges the screenshot. */
+      /* Jev sees only the accessibility tree, so its score on a visual claim is noise: a screenshot decides it. */
       return context.flag === "visual"
-        ? {
-            status: "for-caller",
-            detail: "visual claim, handed to the caller with a full-page screenshot",
-          }
+        ? judgeVisually(page, {
+            claim: context.step,
+            claimNumber: context.number,
+            checklist: context.checklist,
+          })
         : performVerify(page, context, tree);
     default:
       return { status: "unsupported", detail: context.step };
@@ -691,6 +694,9 @@ const attachTree = async (testInfo: TestInfo, name: string, tree: string) => {
 const liveStatus = ({ status, flag }: StepResult) => {
   if (status === "for-caller") {
     return "for-caller (visual: for you to judge)";
+  }
+  if (flag === "visual" && status === "passed") {
+    return "passed (visual judge)";
   }
   return flag === "ok" ? status : `${status} (advisory: ${flag})`;
 };
