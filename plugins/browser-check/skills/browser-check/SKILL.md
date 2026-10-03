@@ -38,6 +38,21 @@ Its one dependency of its own: a file exporting `CLOUDFLARE_ACCOUNT_ID` and `CLO
 with Workers AI access, at `$JEV_ENV_FILE` or `~/.config/jev/env`. If it is missing, ask the user; never search
 for credentials.
 
+It uses the Playwright and browser already on the machine; it never installs or pins either:
+
+- **Playwright 1.59 or newer, already installed.** The plugin never installs or pins one; it uses yours.
+  - `--app` runs under the app's own Playwright, which its fixtures import.
+  - `--url` uses the `@playwright/test` that the checkout resolves (the current directory, or `--worktree`), else
+    the one behind `playwright` on your `PATH`. With neither, the run stops and says how to install one. Older
+    than 1.59 is refused: the runner reads pages with `ariaSnapshot({ mode: "ai" })`, added in 1.59.
+- **A browser, already installed.** For `--url` Chromium projects: Playwright's own Chromium for that version if it
+  is installed, else your installed Google Chrome (`channel: "chrome"`: a separate instance with a fresh temporary
+  profile, never your own). With neither, the run stops with the one command to run
+  (`npx playwright@<version> install chromium`). Firefox and WebKit projects need Playwright's own builds; without
+  them the run stops with their install command.
+
+When the run stops on one of these, relay its message to the user; do not install anything yourself.
+
 ## Two ways to start
 
 **`--url <URL>`** — starts from any page with no fixtures: a local server, a preview, a site outside the repo.
@@ -61,8 +76,8 @@ manifests is the place for anything a caller must know about those apps.
 
 - `<skill-dir>` is this skill's base directory, shown when the skill loads.
 - `--worktree` defaults to the current directory; pass an absolute path when the run's working directory differs
-  from the Playwright checkout, including delegated runs. Both modes need a checkout with Playwright and its
-  browsers installed, even when the URL is outside the repo.
+  from the checkout, including delegated runs. `--app` needs the app's checkout; `--url` needs one only to find
+  Playwright, so any checkout with `@playwright/test` works, even when the URL is outside the repo.
 - Run in the foreground with a command session that permits 10 minutes; the spec's own cap is 10 minutes.
   Delegate the run when an available subagent can handle it, otherwise run it directly.
 - **Browser and size**: `--project` takes `Desktop-Chromium` (the default), `Desktop-Firefox`, `Desktop-Webkit`,
@@ -73,10 +88,10 @@ manifests is the place for anything a caller must know about those apps.
 - **`--hold`** (`--url` only) runs headed and, once the checklist ends, leaves the browser where it stopped so a
   person can carry on by hand, such as on a dialog the steps opened that has no URL of its own. The run ends when
   they close the page, so it has no time cap: start it in the background. The verdict line prints before the hold.
-- The runner source lives in `runner/` beside this file and is copied into the worktree on every run; edit the
-  skill's copy. `--app` copies the engine to `<E2E_DIR>/qa/` and the spec to `<E2E_DIR>/qa.spec.ts`; `--url`
-  copies everything to `<worktree>/.browser-check/`. The copies are removed when the run ends; add them to the
-  repo's `.git/info/exclude` to keep them out of `git status` while it runs.
+- The runner source lives in `runner/` beside this file and is copied for every run; edit the skill's copy.
+  `--app` copies the engine to `<E2E_DIR>/qa/` and the spec to `<E2E_DIR>/qa.spec.ts`; add them to the repo's
+  `.git/info/exclude` to keep them out of `git status` while it runs. `--url` copies everything to a temporary
+  directory and never writes to the checkout. The copies are removed when the run ends.
 - Artifacts go to `<output>/<date>-<time>-<pid>/`, where `--output` defaults to `$TMPDIR/browser-check`: outside the
   worktree, so a test run that clears `test-results` cannot delete them.
 

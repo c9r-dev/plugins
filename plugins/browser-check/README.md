@@ -81,9 +81,6 @@ App manifests live in `~/.config/browser-check/apps/`, so move any you have:
 mv ~/.config/jev-playwright ~/.config/browser-check
 ```
 
-A repository that excludes the per-run copy directory (`.jev-playwright/` in `.git/info/exclude`) should exclude
-`.browser-check/` instead.
-
 ### Moving from jev-browse
 
 An install under the plugin's earlier name, `jev-browse`, does not update either. In Claude Code:
@@ -112,8 +109,16 @@ mv ~/.config/jev-browse ~/.config/browser-check
   export CLOUDFLARE_API_TOKEN=…
   ```
 
-- **A checkout with Playwright and its browsers installed.** The runner is copied into it for each run and removed
-  afterwards; `--worktree` names it.
+- **Playwright 1.59 or newer, already installed.** The plugin never installs or pins one; it uses yours.
+  - `--app` runs under the app's own Playwright, which its fixtures import.
+  - `--url` uses the `@playwright/test` that the checkout resolves (the current directory, or `--worktree`), else
+    the one behind `playwright` on your `PATH`. With neither, the run stops and says how to install one. Older
+    than 1.59 is refused: the runner reads pages with `ariaSnapshot({ mode: "ai" })`, added in 1.59.
+- **A browser, already installed.** For `--url` Chromium projects: Playwright's own Chromium for that version if it
+  is installed, else your installed Google Chrome (`channel: "chrome"`: a separate instance with a fresh temporary
+  profile, never your own). With neither, the run stops with the one command to run
+  (`npx playwright@<version> install chromium`). Firefox and WebKit projects need Playwright's own builds; without
+  them the run stops with their install command.
 - **The app already served** at the URL the run will hit. The plugin never starts servers or seeds data.
 
 The runner sends the page's accessibility tree and checklist text to Cloudflare Workers AI for the model's
@@ -128,8 +133,8 @@ for those operations.
   `~/.config/browser-check/apps/`: `NAME.env` sets `E2E_DIR` and `RUN`, and `NAME.spec.ts` gets a logged-in page
   from your fixtures and calls `runChecklist`. [SKILL.md](skills/browser-check/SKILL.md) documents the format.
 
-For a first `--url` check from a repository checkout, with a Playwright project available at
-`/path/to/playwright-project`:
+For a first `--url` check from a repository checkout, with Playwright installed in
+`/path/to/playwright-project` (or globally):
 
 ```bash
 printf '%s\n' 'Confirm the page shows a "Learn more" link' > /tmp/browser-check-steps.txt
