@@ -43,8 +43,16 @@ On 32 hand-labelled visual claims it agreed with the label 96.9% of the time and
 Installing it is the whole setup in Claude Code: a session hook points browser-check at it. Needs a Cloudflare
 account with Workers AI access.
 
-- [cpu-lock](plugins/cpu-lock/README.md) — one CPU-heavy command at a time across every project and worktree on a
-  Mac, for the commands each repo's `.claude/cpu-lock` gates. Claude Code only, macOS only.
+### [cpu-lock](plugins/cpu-lock/README.md)
+
+Runs one CPU-heavy command at a time across every project and worktree on a Mac, so test suites and builds started
+from different worktrees or agents queue instead of oversubscribing the cores. Each repo lists its heavy commands as
+patterns in `.claude/cpu-lock`; the plugin wraps the Bash calls they match in the lock, subagents' calls included.
+
+It tells Claude when a call will queue, and when a session exits it stops that session's queued and running runs. It
+also offers its bash parser to other plugins as `$.shell`.
+
+Needs macOS and `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`. Claude Code only; Codex does not load it.
 
 ## Releases
 
