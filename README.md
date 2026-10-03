@@ -9,6 +9,9 @@ queues them instead.
 Requires macOS (`/usr/bin/lockf`). The lock is a kernel flock, released whenever its holder dies,
 for any reason including `SIGKILL`, so a crashed run never wedges the queue.
 
+The repository is two things: the lock itself, a shell script you can use on its own, and a
+Claude Code plugin that routes an agent's heavy commands through it.
+
 ## Usage
 
 ```bash
@@ -23,10 +26,10 @@ A queued run says what it is waiting behind. State lives in `${XDG_CACHE_HOME:-~
 `worktree`, `branch`, `started`, `command`, `session`; the holder adds `epoch` and `budget`). A
 record whose process has died is stale; readers check liveness and ignore it.
 
-## Install
+To use the script without the plugin, put it on your `PATH`:
 
 ```bash
-ln -s "$PWD/cpu-lock.sh" ~/.claude/scripts/cpu-lock.sh   # or anywhere on your PATH
+ln -s "$PWD/cpu-lock.sh" /usr/local/bin/cpu-lock.sh
 ```
 
 ## Which commands are heavy: `.claude/cpu-lock`
@@ -37,25 +40,96 @@ the file gates nothing.
 ```
 # Rust
 cargo (test|build|clippy|bench|run)( |$)
-# nx, with or without yarn; long-lived servers (nx dev) stay out
-(yarn (run )?)?nx (test|typecheck|lint|build|e2e|affected|run-many)(:| |$)
+# nx, bare, through npx or through yarn; long-lived servers (nx dev) stay out
+((npx|yarn( run)?) )?nx (test|typecheck|lint|build|e2e|affected|run-many)(:| |$)
 ```
 
 - One regular expression per line. Blank lines and lines starting with `#` are skipped.
 - A pattern matches from the start of a simple command: the command word and its arguments, joined
-  by single spaces. Leading assignments (`FOO=1`) and keywords (`do`, `then`) are not part of it.
+  by single spaces. Leading assignments (`FOO=1`), `env`, keywords (`do`, `then`, `time`) and a
+  `cpu-lock.sh` already in front are not part of it.
 - Write word boundaries as `( |$)`. Patterns must mean the same as a POSIX extended regex and as a
   JavaScript regex, so use neither `\s` nor `[[:space:]]`.
+- Gate every spelling of a heavy command that may reach the shell (`npx nx`, `yarn nx`, `nx`).
+  Another plugin that rewrites commands may run before or after this one, so this one may see
+  either the spelling the agent wrote or the one it is rewritten to.
 
 The lock itself never reads this file. It is the contract for whatever wraps commands
-automatically.
+automatically, which in Claude Code is the plugin below.
 
-## Wrapping commands automatically (optional)
+## The Claude Code plugin
 
-The lock works on its own: whatever runs through `cpu-lock.sh` takes its turn. To have an agent's
-commands take the lock without being told, put something in front of its shell that prefixes
-matching commands with `cpu-lock.sh`, reading the patterns from the repo's `.claude/cpu-lock`.
+The repository root is the plugin. It is written as function hooks, which are early access:
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` must be in the environment, or in `env` in
+`~/.claude/settings.json`.
 
-In Claude Code that is a `PreToolUse` hook on `Bash` that returns the wrapped command as
-`hookSpecificOutput.updatedInput.command`. Claude Code applies it to subagents' calls too. A hook
-that only denies an unwrapped command works as well, at the cost of a retry per command.
+```bash
+claude plugin marketplace add <path or git URL of this repository>
+claude plugin install cpu-lock@cpu-lock
+```
+
+or, for one session, `claude --plugin-dir <this repository>`.
+
+It does three things.
+
+- **Wraps gated commands.** Before every Bash call, it reads `<git toplevel>/.claude/cpu-lock` for
+  the session's directory and puts its own `cpu-lock.sh`, by absolute path inside the installed
+  plugin, in front of each simple command a pattern matches. The wrapper goes at the command word,
+  after any assignment, `env` or keyword, so they still apply to the run. A command that already
+  runs through a `cpu-lock.sh`, by any path, is not wrapped again. A foreground call with no
+  timeout of its own gets the Bash maximum, 600000 ms, since the default two minutes would return
+  mid-run. When a live run holds the lock, the model is told who holds it, for how long and how
+  many wait. Subagents' calls are wrapped too.
+- **Stops this session's runs when it exits.** On exit, every live waiter and holder whose record
+  names this session is cancelled through `cpu-lock.sh --cancel`, detached so the cancels finish
+  after Claude has gone. A `/clear` or a resume keeps the process and its runs, so it cancels
+  nothing.
+- **Lends its shell lexer to other plugins**, as the `shell` noun on `$`.
+
+Nothing here denies a command: an unwrapped heavy command runs, unqueued, as it would without the
+plugin. A command the lexer cannot account for is passed through untouched.
+
+### The `shell` noun
+
+A plugin that needs to read Bash commands as the shell would, without regexes over the whole
+string, can use this plugin's lexer. List it in your `plugin.json`:
+
+```json
+{ "name": "my-plugin", "dependencies": ["cpu-lock"] }
+```
+
+The engine then lays this plugin's contract, `types/index.d.ts`, into your plugin's
+`.claude-plugin/types/cpu-lock/index.d.ts`, so `$.shell` is typed:
+
+```ts
+on("tool.call", { tool: "Bash" }, async ($, e, next) => {
+  const parsed = await $.shell.parse(e.command);
+  if (!parsed.ok) return next(e); // parsed.error says why
+  for (const segment of parsed.segments) {
+    const word = segment.words[segment.commandIndex]; // undefined when the segment runs nothing
+    // word.start and word.end are offsets into e.command, for splicing
+  }
+  return next(e);
+});
+```
+
+`parse` answers plain data: one segment per simple command, each with its tokens (words,
+operators, redirections, heredoc bodies) and their offsets into the command, their unquoted
+values, and whether each was quoted or expands. A quoted string, a heredoc body and a commit
+message that merely name a command are tokens of another command, never a command of their own.
+`commandIndex` looks past assignments, `env`, keywords and a `cpu-lock.sh` wrapper, so a rule that
+fixes `npx nx …` finds it inside `cpu-lock.sh npx nx …` too and fixes it in place: whichever
+plugin runs first, the command that reaches the shell is the same.
+
+`claude plugin test` does not load a plugin's dependencies, so a dependent's tests do not reach
+`$.shell`.
+
+### Developing it
+
+```bash
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test .
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate .claude-plugin/plugin.json
+```
+
+The lexer is `hooks/shell.ts`, the wrapping and the queue note `hooks/wrap.ts`, and the hooks
+`hooks/register.ts`.

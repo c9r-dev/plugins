@@ -161,7 +161,7 @@ if ! /usr/bin/lockf -k -t 0 "$LOCK" true 2>/dev/null; then
   echo "cpu-lock: waiting — another run holds the cpu lock:" >&2
   [ -f "$HOLDER" ] && sed 's/^/cpu-lock:   /' "$HOLDER" >&2
   echo "cpu-lock: this run starts when that one finishes. Run it in the background so the wait cannot time out." >&2
-  echo "cpu-lock: see the whole queue with: ~/.claude/scripts/cpu-lock.sh --status" >&2
+  echo "cpu-lock: see the whole queue with: $0 --status" >&2
 fi
 
 exec /usr/bin/lockf -k "$LOCK" "$0" --held "$$" "$@"
