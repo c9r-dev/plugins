@@ -11,7 +11,11 @@ export type VisualJudge = (input: {
   claim: string;
   claimNumber: number;
   checklist: string[];
-  /** PNG of the viewport at CSS scale: `page.screenshot({ scale: "css" })`, so 1440×900 stays 1440×900 on a 2× display. */
+  /**
+   * PNG of the full page at CSS scale, `page.screenshot({ fullPage: true, scale: "css" })`: the picture the caller
+   * would judge, since a claim such as "no error is shown" can be about anything below the fold. CSS scale keeps a
+   * 2× display from quadrupling the image.
+   */
   screenshot: Uint8Array;
 }) => Promise<{ status: "passed" | "for-caller"; detail: string }>;
 
@@ -44,7 +48,7 @@ export const judgeVisually = async (
   }
   try {
     const judge = await loadJudge(module);
-    const { status, detail } = await judge({ ...claim, screenshot: await page.screenshot({ scale: "css" }) });
+    const { status, detail } = await judge({ ...claim, screenshot: await page.screenshot({ fullPage: true, scale: "css" }) });
     if (status === "passed") {
       return { status, detail: `visual judge: ${detail}` };
     }

@@ -7,7 +7,13 @@ import { afterEach, describe, it } from "node:test";
 import { judgeVisually } from "../runner/engine/visual.ts";
 
 const SCREENSHOT = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
-const page = { screenshot: async () => Buffer.from(SCREENSHOT) };
+const page = {
+  screenshot: async (options?: { fullPage?: boolean; scale?: string }) => {
+    /* The judge must see what the caller would: the whole page, not just the viewport. */
+    assert.deepEqual(options, { fullPage: true, scale: "css" });
+    return Buffer.from(SCREENSHOT);
+  },
+};
 const claim = { claim: "Confirm the logo is centred", claimNumber: 3, checklist: ["a", "b", "Confirm the logo is centred"] };
 
 /** Writes a judge module whose default export has `body` as its body, and points QA_VISUAL_JUDGE at it. */
