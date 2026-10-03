@@ -12,18 +12,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Release the plugin.json version if it is new
+      - name: Release each plugin whose plugin.json version is new
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v$(jq -r .version .claude-plugin/plugin.json)"
-          # --exit-code returns 2 when no ref matches; any other failure stops the job.
-          status=0
-          git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null || status=$?
-          if [ "$status" -eq 0 ]; then
-            echo "$tag is already released"
-          elif [ "$status" -eq 2 ]; then
-            gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes
-          else
-            exit "$status"
-          fi
+          for manifest in plugins/*/.claude-plugin/plugin.json; do
+            name=$(jq -r .name "$manifest")
+            tag="$name-v$(jq -r .version "$manifest")"
+            # --exit-code returns 2 when no ref matches; any other failure stops the job.
+            status=0
+            git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null || status=$?
+            if [ "$status" -eq 0 ]; then
+              echo "$tag is already released"
+            elif [ "$status" -eq 2 ]; then
+              # Notes start from this plugin's previous release, not whichever plugin released last.
+              previous=$(git ls-remote --tags --refs origin "refs/tags/$name-v*" | sed 's|.*refs/tags/||' | sort -V | tail -n 1)
+              gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes \
+                ${previous:+--notes-start-tag "$previous"}
+            else
+              exit "$status"
+            fi
+          done

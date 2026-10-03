@@ -13,4 +13,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node --test 'skills/jev-playwright/tests/*.test.ts'
+      - name: Test each plugin
+        run: |
+          failed=""
+          for plugin in plugins/*/; do
+            echo "::group::$plugin"
+            (cd "$plugin" && node --test) || failed="$failed $plugin"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "Failed:$failed"
+            exit 1
+          fi
