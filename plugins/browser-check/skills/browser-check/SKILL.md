@@ -25,7 +25,7 @@ default export is a function of this shape:
 ```ts
 type VisualJudge = (input: {
   claim: string; claimNumber: number; checklist: string[];
-  screenshot: Uint8Array; // PNG of the viewport at CSS scale: page.screenshot({ scale: "css" })
+  screenshot: Uint8Array; // PNG of the full page at CSS scale: page.screenshot({ fullPage: true, scale: "css" })
 }) => Promise<{ status: "passed" | "for-caller"; detail: string }>;
 ```
 
