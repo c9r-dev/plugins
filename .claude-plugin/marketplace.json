@@ -9,6 +9,11 @@
       "name": "browser-check",
       "source": "./plugins/browser-check",
       "description": "Run a plain-English QA checklist in a real browser, with a judgment model deciding each step."
+    },
+    {
+      "name": "browser-check-visual",
+      "source": "./plugins/browser-check-visual",
+      "description": "Judge browser-check's visual steps (layout, colour, clipping, icons) from a screenshot with a vision judgment model."
     }
   ]
 }
