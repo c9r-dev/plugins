@@ -108,7 +108,11 @@ mv ~/.config/jev-browse ~/.config/browser-check
   ```bash
   export CLOUDFLARE_ACCOUNT_ID=…
   export CLOUDFLARE_API_TOKEN=…
+  export CLOUDFLARE_AI_GATEWAY=default   # optional: route through this AI Gateway
   ```
+
+  With `CLOUDFLARE_AI_GATEWAY` set, every call carries `cf-aig-gateway-id`. A gateway on Unified billing then pays
+  from its prepaid credit rather than the account's free daily allocation.
 
 - **Playwright 1.59 or newer and a browser, already installed.** The plugin uses yours and never installs or pins
   either: the checkout's or a global `@playwright/test`, and Playwright's own browser build, or for Chromium your
