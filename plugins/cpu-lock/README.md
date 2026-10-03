@@ -20,7 +20,7 @@ cpu-lock.sh cargo test --workspace     # waits its turn, then runs; exits with t
 cpu-lock.sh --status                   # who holds the lock, how long, and who is queued
 cpu-lock.sh --cancel <pid>             # stop a queued or running run, by the pid --status shows
 cpu-lock.sh --cancel-session <id>      # stop every queued or running run of one Claude Code session
-CPU_LOCK_MAX=900 cpu-lock.sh nx test   # kill the run (exit 124) if it holds the lock over 900 s
+CPU_LOCK_MAX=900 cpu-lock.sh make test # kill the run (exit 124) if it holds the lock over 900 s
 ```
 
 A queued run says what it is waiting behind. `--status` exits 0 while the lock is free and 3 while
@@ -43,8 +43,8 @@ the file gates nothing.
 ```
 # Rust
 cargo (test|build|clippy|bench|run)( |$)
-# nx, bare, through npx or through yarn; long-lived servers (nx dev) stay out
-((npx|yarn( run)?) )?nx (test|typecheck|lint|build|e2e|affected|run-many)(:| |$)
+# nx; long-lived servers (nx dev) stay out
+nx (test|lint|build)(:| |$)
 ```
 
 - One regular expression per line. Blank lines and lines starting with `#` are skipped.
@@ -54,9 +54,8 @@ cargo (test|build|clippy|bench|run)( |$)
   their `-option` words, are not part of it.
 - Write word boundaries as `( |$)`. Patterns must mean the same as a POSIX extended regex and as a
   JavaScript regex, so use neither `\s` nor `[[:space:]]`.
-- Gate every spelling of a heavy command that may reach the shell (`npx nx`, `yarn nx`, `nx`).
-  Another plugin that rewrites commands may run before or after this one, so this one may see
-  either the spelling the agent wrote or the one it is rewritten to.
+- If another plugin rewrites commands, gate both the form the agent writes and the form it is
+  rewritten to: plugins of one tier run in no set order, so this one may see either.
 
 The lock itself never reads this file. It is the contract for whatever wraps commands
 automatically, which in Claude Code is the plugin below.
@@ -121,8 +120,8 @@ operators, redirections, heredoc bodies) and their offsets into the command, the
 values, and whether each was quoted or expands. A quoted string, a heredoc body and a commit
 message that merely name a command are tokens of another command, never a command of their own.
 `commandIndex` looks past assignments, keywords, `env`, `time`, `nice`, `nohup` and a `cpu-lock.sh`
-wrapper, with their `-option` words, so a rule that fixes `npx nx …` finds it inside
-`cpu-lock.sh npx nx …` too and fixes it in place: whichever plugin runs first, the command that
+wrapper, with their `-option` words, so a plugin that rewrites a command finds it inside
+`cpu-lock.sh …` too and rewrites it in place: whichever plugin runs first, the command that
 reaches the shell is the same.
 
 `claude plugin test` does not load a plugin's dependencies, so a dependent's tests do not reach
