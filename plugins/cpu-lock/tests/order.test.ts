@@ -35,28 +35,28 @@ const CARGO = "cargo (test|build|clippy|bench|run)( |$)\n";
 
 describe("with the stand-in outside this plugin", () => {
   test("npx nx test:unit runs wrapped, without npx", { plugins: [dropNpx("prepend")] }, async ($, on) => {
-    const last = intercept(on, { gates: NX });
+    const { lastCall } = intercept(on, { gates: NX });
     await $.tool.call({ tool: "Bash", command: "npx nx test:unit app" });
-    expect(last().command).toMatch(WRAPPED("nx test:unit app"));
+    expect(lastCall().command).toMatch(WRAPPED("nx test:unit app"));
   });
 
   test("cargo test runs wrapped", { plugins: [dropNpx("prepend")] }, async ($, on) => {
-    const last = intercept(on, { gates: CARGO });
+    const { lastCall } = intercept(on, { gates: CARGO });
     await $.tool.call({ tool: "Bash", command: "cargo test" });
-    expect(last().command).toMatch(WRAPPED("cargo test"));
+    expect(lastCall().command).toMatch(WRAPPED("cargo test"));
   });
 });
 
 describe("with the stand-in inside this plugin", () => {
   test("npx nx test:unit runs wrapped, without npx", { plugins: [dropNpx("append")] }, async ($, on) => {
-    const last = intercept(on, { gates: NX });
+    const { lastCall } = intercept(on, { gates: NX });
     await $.tool.call({ tool: "Bash", command: "npx nx test:unit app" });
-    expect(last().command).toMatch(WRAPPED("nx test:unit app"));
+    expect(lastCall().command).toMatch(WRAPPED("nx test:unit app"));
   });
 
   test("cargo test runs wrapped", { plugins: [dropNpx("append")] }, async ($, on) => {
-    const last = intercept(on, { gates: CARGO });
+    const { lastCall } = intercept(on, { gates: CARGO });
     await $.tool.call({ tool: "Bash", command: "cargo test" });
-    expect(last().command).toMatch(WRAPPED("cargo test"));
+    expect(lastCall().command).toMatch(WRAPPED("cargo test"));
   });
 });

@@ -10,8 +10,9 @@
 #
 #   cpu-lock.sh nx test:unit my-app
 #   cpu-lock.sh cargo test --workspace 2>&1 | tee /tmp/run.txt
-#   cpu-lock.sh --status          # who holds the lock and who is queued
+#   cpu-lock.sh --status          # who holds the lock and who is queued; exits 3 while it is held
 #   cpu-lock.sh --cancel <pid>    # stop a queued or running run, by the pid --status shows
+#   cpu-lock.sh --cancel-session <id>   # stop every queued or running run of one Claude Code session
 #
 # CPU_LOCK_MAX=<seconds> kills a run that holds the lock longer, so a hung run frees it.
 
@@ -34,8 +35,13 @@ describe() {
   printf '    pid %s in %s since %s\n' "$(field "$1" pid)" "$(field "$1" worktree)" "$(field "$1" started)"
 }
 
+# --status exits with this while a live run holds the lock, and 0 while it is free.
+HELD_STATUS=3
+
 if [ "${1-}" = "--status" ]; then
+  held=0
   if [ -f "$HOLDER" ] && alive "$(field "$HOLDER" pid)"; then
+    held=1
     echo "holding the cpu lock:"
     describe "$HOLDER"
     epoch=$(field "$HOLDER" epoch); budget=$(field "$HOLDER" budget)
@@ -62,6 +68,7 @@ if [ "${1-}" = "--status" ]; then
     fi
   done
   [ "$n" -eq 0 ] && echo "nothing queued."
+  [ "$held" -eq 1 ] && exit "$HELD_STATUS"
   exit 0
 fi
 
@@ -85,8 +92,8 @@ kill_tree() {
 
 # Stops one queued or running run by the pid its record names, with everything under it. Only a pid
 # that is a current holder or waiter is accepted, so this can never kill an unrelated process.
-if [ "${1-}" = "--cancel" ]; then
-  pid="${2-}"
+cancel() {
+  local pid="$1"
   if [ -n "$pid" ] && [ -f "$WAITERS/$pid" ]; then
     kill_tree "$pid"
     rm -f "$WAITERS/$pid"
@@ -96,8 +103,24 @@ if [ "${1-}" = "--cancel" ]; then
     echo "cpu-lock: stopped running run $pid"
   else
     echo "cpu-lock: $pid is not a queued or running cpu-lock run" >&2
-    exit 1
+    return 1
   fi
+}
+
+if [ "${1-}" = "--cancel" ]; then
+  cancel "${2-}"
+  exit
+fi
+
+# Waiters go first, so none of them takes the lock the holder's cancel frees.
+if [ "${1-}" = "--cancel-session" ]; then
+  session="${2-}"
+  [ -n "$session" ] || { echo "usage: cpu-lock.sh --cancel-session <session-id>" >&2; exit 64; }
+  for record in "$WAITERS"/* "$HOLDER"; do
+    [ -f "$record" ] || continue
+    pid=$(field "$record" pid)
+    if [ "$(field "$record" session)" = "$session" ] && alive "$pid"; then cancel "$pid"; fi
+  done
   exit 0
 fi
 
@@ -149,7 +172,7 @@ if [ "${1-}" = "--held" ]; then
   exit "$rc"
 fi
 
-[ $# -gt 0 ] || { echo "usage: cpu-lock.sh <command> [args...] | --status | --cancel <pid>" >&2; exit 64; }
+[ $# -gt 0 ] || { echo "usage: cpu-lock.sh <command> [args...] | --status | --cancel <pid> | --cancel-session <session-id>" >&2; exit 64; }
 mkdir -p "$LOCK_DIR" "$WAITERS"
 
 # Register as a waiter before queueing, so --status can show the whole queue. The record is

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "claude-code/testing";
 import { parse } from "../hooks/shell";
-import { gatePatterns, parseLockRecord, queueNote, shellWord, wrapGated, wrappedTimeout } from "../hooks/wrap";
+import { gatePatterns, shellWord, wrapGated, wrappedTimeout } from "../hooks/wrap";
 
 const W = "/opt/cpu-lock/cpu-lock.sh";
 
@@ -127,25 +127,5 @@ describe("the timeout", () => {
 describe("patterns", () => {
   test("skip comments and blank lines, and anchor each at the command's start", () => {
     expect(gatePatterns("# heavy\n\ncargo test( |$)\n").map((p) => p.source)).toEqual(["^(cargo test( |$))"]);
-  });
-});
-
-describe("the queue note", () => {
-  const holder = parseLockRecord(
-    "pid:      4242\nworktree: /Users/c/projects/app/worktrees/3-green\ncommand:  nx test:e2e app\nepoch:    1000\nbudget:   900\n",
-  );
-
-  test("names the holder, how long it has held, its budget and the queue ahead", () => {
-    expect(queueNote({ holder, waiting: 2, nowSeconds: 1120 }, W)).toEqual(
-      "cpu-lock: when this call started, 3-green's `nx test:e2e app` held the lock for 120s of a 900s budget, " +
-        `with 2 more queued ahead. This run waits until those finish; \`${W} --status\` shows the queue.`,
-    );
-  });
-
-  test("leaves out what the holder's record does not say", () => {
-    expect(queueNote({ holder: { command: "cargo test" }, waiting: 0, nowSeconds: 1120 }, W)).toEqual(
-      "cpu-lock: when this call started, ?'s `cargo test` held the lock. This run waits until those finish; " +
-        `\`${W} --status\` shows the queue.`,
-    );
   });
 });

@@ -19,13 +19,14 @@ does not load it.
 cpu-lock.sh cargo test --workspace     # waits its turn, then runs; exits with the command's status
 cpu-lock.sh --status                   # who holds the lock, how long, and who is queued
 cpu-lock.sh --cancel <pid>             # stop a queued or running run, by the pid --status shows
+cpu-lock.sh --cancel-session <id>      # stop every queued or running run of one Claude Code session
 CPU_LOCK_MAX=900 cpu-lock.sh nx test   # kill the run (exit 124) if it holds the lock over 900 s
 ```
 
-A queued run says what it is waiting behind. State lives in `${XDG_CACHE_HOME:-~/.cache}/cpu-lock/`:
-`cpu.holder` and one file per waiter in `waiters/`, each a list of `key:   value` lines (`pid`,
-`worktree`, `branch`, `started`, `command`, `session`; the holder adds `epoch` and `budget`). A
-record whose process has died is stale; readers check liveness and ignore it.
+A queued run says what it is waiting behind. `--status` exits 0 while the lock is free and 3 while
+a run holds it. State lives in `${XDG_CACHE_HOME:-~/.cache}/cpu-lock/`: a record of the holder and
+of each waiter, naming its pid, checkout, branch, command and Claude Code session. A record whose
+process has died is stale, and the script ignores it.
 
 To use the script without the plugin, put it on your `PATH` from a checkout of
 [c9r-dev/plugins](https://github.com/c9r-dev/plugins):
@@ -79,10 +80,10 @@ It does three things.
   after any assignment, `env` or keyword, so they still apply to the run. A command that already
   runs through a `cpu-lock.sh`, by any path, is not wrapped again. A foreground call with no
   timeout of its own gets the Bash maximum, 600000 ms, since the default two minutes would return
-  mid-run. When a live run holds the lock, the model is told who holds it, for how long and how
-  many wait. Subagents' calls are wrapped too.
-- **Stops this session's runs when it exits.** On exit, every live waiter and holder whose record
-  names this session is cancelled through `cpu-lock.sh --cancel`, detached so the cancels finish
+  mid-run. When a live run holds the lock, the model is told the call will queue, with what
+  `cpu-lock.sh --status` reports. Subagents' calls are wrapped too.
+- **Stops this session's runs when it exits.** On exit, `cpu-lock.sh --cancel-session` cancels
+  every live waiter and holder whose record names this session, detached so the cancels finish
   after Claude has gone. A `/clear` or a resume keeps the process and its runs, so it cancels
   nothing.
 - **Lends its shell lexer to other plugins**, as the `shell` noun on `$`.

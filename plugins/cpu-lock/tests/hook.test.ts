@@ -1,5 +1,5 @@
 import type { Plugin } from "claude-code/testing";
-import { describe, expect, mock, test } from "claude-code/testing";
+import { describe, expect, test } from "claude-code/testing";
 import type { ShellParse } from "../types/index";
 import { intercept, WRAPPED } from "./host";
 
@@ -7,61 +7,49 @@ const CARGO = "# heavy\ncargo (test|build|clippy|bench|run)( |$)\n";
 
 describe("the Bash tool.call hook", () => {
   test("wraps a gated command in the plugin's own cpu-lock.sh, with the maximum timeout", async ($, on) => {
-    const last = intercept(on, { gates: CARGO });
+    const { lastCall } = intercept(on, { gates: CARGO });
     await $.tool.call({ tool: "Bash", command: "cargo test --workspace" });
-    expect(last().command).toMatch(WRAPPED("cargo test --workspace"));
-    expect(last().timeout).toEqual(600000);
+    expect(lastCall().command).toMatch(WRAPPED("cargo test --workspace"));
+    expect(lastCall().timeout).toEqual(600000);
   });
 
   test("wraps nothing in a repo without a cpu-lock file", async ($, on) => {
-    const last = intercept(on, {});
+    const { lastCall } = intercept(on, {});
     await $.tool.call({ tool: "Bash", command: "cargo test --workspace" });
-    expect(last()).toEqual({ command: "cargo test --workspace", timeout: undefined, run_in_background: undefined });
+    expect(lastCall()).toEqual({ command: "cargo test --workspace", timeout: undefined, run_in_background: undefined });
   });
 
   test("wraps nothing outside a repo", async ($, on) => {
-    const last = intercept(on, { gates: CARGO, outsideRepo: true });
+    const { lastCall } = intercept(on, { gates: CARGO, outsideRepo: true });
     await $.tool.call({ tool: "Bash", command: "cargo test" });
-    expect(last().command).toEqual("cargo test");
+    expect(lastCall().command).toEqual("cargo test");
   });
 
   test("passes a command it cannot parse through unchanged", async ($, on) => {
-    const last = intercept(on, { gates: CARGO });
+    const { lastCall } = intercept(on, { gates: CARGO });
     await $.tool.call({ tool: "Bash", command: `cargo test "unterminated` });
-    expect(last().command).toEqual(`cargo test "unterminated`);
+    expect(lastCall().command).toEqual(`cargo test "unterminated`);
   });
 
-  test("notes the live holder and the live runs queued ahead of a run it wraps", async ($, on) => {
-    mock.clock(on, { now: 1_120_000 });
-    const last = intercept(on, {
-      gates: CARGO,
-      lock: {
-        holder: "pid:      4242\nworktree: /work/worktrees/3-green\ncommand:  nx test:e2e app\nepoch:    1000\nbudget:   900\n",
-        waiters: ["5000", "5001"],
-        alive: ["4242", "5000"],
-      },
-    });
+  test("notes, on a run it wraps while the lock is held, that it queues and what --status said", async ($, on) => {
+    const held = "holding the cpu lock:\nmain  nx test:e2e app\n    held for 120s\nnothing queued.\n";
+    const { lastCall } = intercept(on, { gates: CARGO, held });
     const result = await $.tool.call({ tool: "Bash", command: "cargo test" });
-    const wrapper = WRAPPED("cargo test").exec(last().command)?.[1];
+    const wrapper = WRAPPED("cargo test").exec(lastCall().command)?.[1];
     expect(result.context).toEqual([
-      "cpu-lock: when this call started, 3-green's `nx test:e2e app` held the lock for 120s of a 900s budget, " +
-        `with 1 more queued ahead. This run waits until those finish; \`${wrapper} --status\` shows the queue.`,
+      "cpu-lock: another run held the lock when this call started, so this run waits until the runs ahead of " +
+        `it finish. \`${wrapper} --status\` said then:\n${held.trimEnd()}`,
     ]);
   });
 
-  test("notes nothing when the holder's pid is dead", async ($, on) => {
-    mock.clock(on, { now: 1_120_000 });
-    intercept(on, {
-      gates: CARGO,
-      lock: { holder: "pid: 4242\ncommand: nx test:e2e app\n", waiters: [], alive: [] },
-    });
+  test("notes nothing while the lock is free", async ($, on) => {
+    intercept(on, { gates: CARGO });
     const result = await $.tool.call({ tool: "Bash", command: "cargo test" });
     expect(result.context).toEqual(undefined);
   });
 
   test("notes nothing on a call it did not wrap", async ($, on) => {
-    mock.clock(on, { now: 1_120_000 });
-    intercept(on, { gates: CARGO, lock: { holder: "pid: 4242\n", waiters: [], alive: ["4242"] } });
+    intercept(on, { gates: CARGO, held: "holding the cpu lock:\n" });
     const result = await $.tool.call({ tool: "Bash", command: "cargo fmt" });
     expect(result.context).toEqual(undefined);
   });
@@ -82,15 +70,15 @@ const CONSUMER: Plugin = {
 
 describe("the shell noun, to another plugin", () => {
   test("answers segments as plain data", { plugins: [CONSUMER] }, async ($, on) => {
-    const last = intercept(on, {});
+    const { lastCall } = intercept(on, {});
     await $.tool.call({ tool: "Bash", command: "A=1 nx build app | tee out" });
-    const parsed = JSON.parse(last().command) as ShellParse;
+    const parsed = JSON.parse(lastCall().command) as ShellParse;
     expect(parsed.ok && parsed.segments.map((s) => s.words[s.commandIndex]?.value)).toEqual(["nx", "tee"]);
   });
 
   test("answers a failure as data rather than throwing", { plugins: [CONSUMER] }, async ($, on) => {
-    const last = intercept(on, {});
+    const { lastCall } = intercept(on, {});
     await $.tool.call({ tool: "Bash", command: "echo 'open" });
-    expect(JSON.parse(last().command)).toEqual({ ok: false, error: "unterminated single quote" });
+    expect(JSON.parse(lastCall().command)).toEqual({ ok: false, error: "unterminated single quote" });
   });
 });

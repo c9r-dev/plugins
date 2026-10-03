@@ -6,18 +6,6 @@ import { namesWrapper } from "./shell";
 /** The Bash tool's maximum. The default of 120000 returns mid-run and reads like a finished run. */
 export const MAX_TIMEOUT_MS = 600_000;
 
-/** A `key:   value` record, the format `cpu-lock.sh` writes for its holder and each waiter. */
-export type LockRecord = Readonly<Record<string, string>>;
-
-/** The lock while a live run holds it. */
-export type LockQueue = {
-  readonly holder: LockRecord;
-  /** How many live runs wait for the lock. */
-  readonly waiting: number;
-  /** When the lock was read, in epoch seconds. */
-  readonly nowSeconds: number;
-};
-
 /**
  * The patterns of a `.claude/cpu-lock` file, each anchored at the start of a command: one extended
  * regex per line, blank lines and `#` comments skipped.
@@ -84,31 +72,13 @@ export function wrappedTimeout(call: {
   return MAX_TIMEOUT_MS;
 }
 
-/** A `key:   value` record as `cpu-lock.sh` writes it. */
-export function parseLockRecord(text: string): LockRecord {
-  const record: Record<string, string> = {};
-  for (const line of text.split("\n")) {
-    const [, key, value] = /^(\w+):\s*(.*)$/.exec(line) ?? [];
-    if (key !== undefined && value !== undefined) record[key] = value.trim();
-  }
-  return record;
-}
-
-/** The slot name of a worktree under `…/worktrees/`, else the whole path. */
-function worktreeName(record: LockRecord): string {
-  return record["worktree"]?.match(/\/worktrees\/([^/]+)/)?.[1] ?? record["worktree"] ?? "?";
-}
-
-/** What the model should know before a run that will queue: who holds the lock, for how long, and how many wait. */
-export function queueNote({ holder, waiting, nowSeconds }: LockQueue, wrapper: string): string {
-  const epoch = Number(holder["epoch"]);
-  const budget = Number(holder["budget"]);
-  const held = epoch ? ` for ${nowSeconds - epoch}s` : "";
-  const ofBudget = budget > 0 ? ` of a ${holder["budget"]}s budget` : "";
-  const ahead = waiting > 0 ? `, with ${waiting} more queued ahead` : "";
+/**
+ * What the model should know before a run that will queue: that it waits, and the queue as
+ * `cpu-lock.sh --status` reported it when the call started.
+ */
+export function queueNote(status: string, wrapper: string): string {
   return (
-    `cpu-lock: when this call started, ${worktreeName(holder)}'s \`${holder["command"] ?? "?"}\` held the lock` +
-    `${held}${ofBudget}${ahead}. This run waits until those finish; ` +
-    `\`${wrapper} --status\` shows the queue.`
+    "cpu-lock: another run held the lock when this call started, so this run waits until the runs " +
+    `ahead of it finish. \`${wrapper} --status\` said then:\n${status.trimEnd()}`
   );
 }
