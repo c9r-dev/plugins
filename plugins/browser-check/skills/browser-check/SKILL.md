@@ -7,8 +7,8 @@ description: Run a plain-English browser QA checklist against a served web app, 
 
 Executes a checklist written as plain English, one step per line. Each step is an action (click, type, open a
 URL) or a check ("Confirm …"). Jev picks the element to act on from the page's accessibility tree and judges each
-check against the settled page. Measured on a 24-step flow: ~35 s and ~$0.01, against 6.5 minutes driving a
-browser by hand.
+check against the settled page. Measured on a 24-step flow: ~35 s and ~$0.01, against 14 minutes for Claude
+driving the same flow through a browser extension.
 
 It is a QA aid, not a merge gate: a pass is Jev's judgement at ≥ 0.7 probability, not a locator assertion.
 
@@ -31,9 +31,9 @@ type VisualJudge = (input: {
 
 Export it from the env file (`export QA_VISUAL_JUDGE=…`) or the environment. The runner asks it each visual step.
 A judge can pass the step or hand it back; it can never fail one. When none is set, or it throws, or it returns any
-other status, the step is handed to the caller as before, with the reason in its detail.
-A step it passed reports `passed (visual judge)` and is listed in the verdict line as
-`passed by the visual judge`, apart from the decisive steps; one it handed back is yours to judge as usual.
+other status, the step is handed to the caller as before, with the reason in its detail. A step it passed reports
+`passed (visual judge)` and is listed in the verdict line as `passed by the visual judge`, apart from the decisive
+steps; one it handed back is yours to judge as usual.
 
 browser-check drives a live page. To judge image files that already exist, such as screenshots from another run or
 a design mock, you need no browser-check: read them directly.
@@ -56,12 +56,12 @@ for credentials.
 
 It uses the Playwright and browser already on the machine; it never installs or pins either:
 
-- **Playwright 1.59 or newer, already installed.** The plugin never installs or pins one; it uses yours.
+- **Playwright 1.59 or newer.**
   - `--app` runs under the app's own Playwright, which its fixtures import.
   - `--url` uses the `@playwright/test` that the checkout resolves (the current directory, or `--worktree`), else
     the one behind `playwright` on your `PATH`. With neither, the run stops and says how to install one. Older
     than 1.59 is refused: the runner reads pages with `ariaSnapshot({ mode: "ai" })`, added in 1.59.
-- **A browser, already installed.** For `--url` Chromium projects: Playwright's own Chromium for that version if it
+- **A browser.** For `--url` Chromium projects: Playwright's own Chromium for that version if it
   is installed, else your installed Google Chrome (`channel: "chrome"`: a separate instance with a fresh temporary
   profile, never your own). With neither, the run stops with the one command to run
   (`npx playwright@<version> install chromium`). Firefox and WebKit projects need Playwright's own builds; without
@@ -154,8 +154,8 @@ Live lines while it runs, then a table and a Jev usage line:
   many, so it never carries on into the next step's work. A step's quoted values are a floor under the count.
 - **preflight** lines list steps Jev cannot decide from the settled tree (`transient`, `derived`, `visual`,
   `external`). A `visual` check is not sent to Jev: it goes to the visual judge when one is set, and otherwise
-  reports `for-caller` with no `c=`, its full-page `step-N.png` for you to judge. The other flags still run, as **advisory**: shown, never decisive; rewrite
-  them per the rules above. An advisory `c=` is not a finding: two builds scoring 0.44 and 0.45 say nothing about
+  reports `for-caller` with no `c=`, its full-page `step-N.png` for you to judge. The other flags still run, as
+  **advisory**: shown, never decisive; rewrite them per the rules above. An advisory `c=` is not a finding: two builds scoring 0.44 and 0.45 say nothing about
   which is right.
 - **c=** is element-choice confidence for an action, yes-probability for a check. Both fail below 0.70. A low
   check score is a confident "no", not uncertainty. A check in the 0.5–0.7 band usually means part of the claim
