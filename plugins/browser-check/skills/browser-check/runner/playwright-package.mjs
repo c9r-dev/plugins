@@ -2,10 +2,9 @@
 // Prints the directory of the @playwright/test a --url run uses: the one the checkout resolves (its own or a hoisted
 // one in a parent), else the one behind `playwright` on PATH. Exits 2 with what to do when there is none, or when it
 // predates ariaSnapshot({ mode: "ai" }), which the runner reads every page through.
-import { execFileSync } from "node:child_process";
-import { readFileSync, realpathSync } from "node:fs";
+import { accessSync, constants, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 
 const MINIMUM = [1, 59];
 
@@ -24,15 +23,23 @@ function resolveFrom(dir) {
   }
 }
 
-/** The directory of the `playwright` command on PATH with symlinks followed, or undefined when there is none. */
-function commandDir() {
+function isExecutable(path) {
   try {
-    const command = execFileSync("sh", ["-c", "command -v playwright"], { encoding: "utf8" }).trim();
-    return dirname(realpathSync(command));
-  } catch (error) {
-    if (error.status === 1) return undefined;
-    throw error;
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
   }
+}
+
+/** The directory of the first `playwright` command on PATH with symlinks followed, or undefined when there is none. */
+function commandDir() {
+  const command = (process.env.PATH ?? "")
+    .split(delimiter)
+    .filter(Boolean)
+    .map((dir) => join(dir, "playwright"))
+    .find(isExecutable);
+  return command && dirname(realpathSync(command));
 }
 
 const checkout = process.argv[2] ?? stop("pass the checkout directory");
