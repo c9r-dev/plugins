@@ -49,8 +49,9 @@ cargo (test|build|clippy|bench|run)( |$)
 
 - One regular expression per line. Blank lines and lines starting with `#` are skipped.
 - A pattern matches from the start of a simple command: the command word and its arguments, joined
-  by single spaces. Leading assignments (`FOO=1`), `env`, keywords (`do`, `then`, `time`) and a
-  `cpu-lock.sh` already in front are not part of it.
+  by single spaces. Leading assignments (`FOO=1`), keywords (`do`, `then`) and the commands that run
+  the words after them (`env`, `time`, `nice`, `nohup` and a `cpu-lock.sh` already in front), with
+  their `-option` words, are not part of it.
 - Write word boundaries as `( |$)`. Patterns must mean the same as a POSIX extended regex and as a
   JavaScript regex, so use neither `\s` nor `[[:space:]]`.
 - Gate every spelling of a heavy command that may reach the shell (`npx nx`, `yarn nx`, `nx`).
@@ -77,10 +78,10 @@ It does three things.
 - **Wraps gated commands.** Before every Bash call, it reads `<git toplevel>/.claude/cpu-lock` for
   the session's directory and puts its own `cpu-lock.sh`, by absolute path inside the installed
   plugin, in front of each simple command a pattern matches. The wrapper goes at the command word,
-  after any assignment, `env` or keyword, so they still apply to the run. A command that already
-  runs through a `cpu-lock.sh`, by any path, is not wrapped again. A foreground call with no
-  timeout of its own gets the Bash maximum, 600000 ms, since the default two minutes would return
-  mid-run. When a live run holds the lock, the model is told the call will queue, with what
+  after any assignment, keyword, `env`, `time`, `nice` or `nohup`, so they still apply to the run.
+  A command that already runs through a `cpu-lock.sh`, by any path, is not wrapped again. A
+  foreground call with no timeout of its own gets the Bash maximum, 600000 ms, since the default
+  two minutes would return mid-run. When a live run holds the lock, the model is told the call will queue, with what
   `cpu-lock.sh --status` reports. Subagents' calls are wrapped too.
 - **Stops this session's runs when it exits.** On exit, `cpu-lock.sh --cancel-session` cancels
   every live waiter and holder whose record names this session, detached so the cancels finish
@@ -119,9 +120,10 @@ on("tool.call", { tool: "Bash" }, async ($, e, next) => {
 operators, redirections, heredoc bodies) and their offsets into the command, their unquoted
 values, and whether each was quoted or expands. A quoted string, a heredoc body and a commit
 message that merely name a command are tokens of another command, never a command of their own.
-`commandIndex` looks past assignments, `env`, keywords and a `cpu-lock.sh` wrapper, so a rule that
-fixes `npx nx …` finds it inside `cpu-lock.sh npx nx …` too and fixes it in place: whichever
-plugin runs first, the command that reaches the shell is the same.
+`commandIndex` looks past assignments, keywords, `env`, `time`, `nice`, `nohup` and a `cpu-lock.sh`
+wrapper, with their `-option` words, so a rule that fixes `npx nx …` finds it inside
+`cpu-lock.sh npx nx …` too and fixes it in place: whichever plugin runs first, the command that
+reaches the shell is the same.
 
 `claude plugin test` does not load a plugin's dependencies, so a dependent's tests do not reach
 `$.shell`.

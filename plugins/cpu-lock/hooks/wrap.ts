@@ -1,7 +1,7 @@
 /** The pure half of the plugin: which segments to wrap, how, and what to tell the model. */
 
 import type { ShellSegment as Segment } from "../types/index";
-import { namesWrapper } from "./shell";
+import { commandName } from "./shell";
 
 /** The Bash tool's maximum. The default of 120000 returns mid-run and reads like a finished run. */
 export const MAX_TIMEOUT_MS = 600_000;
@@ -55,7 +55,7 @@ export function wrapGated(
  * joined by single spaces, and no wrapper precedes the command word already.
  */
 function isGated(segment: Segment, patterns: readonly RegExp[]): boolean {
-  if (segment.words.slice(0, segment.commandIndex).some(namesWrapper)) return false;
+  if (segment.words.slice(0, segment.commandIndex).some((word) => commandName(word) === "cpu-lock.sh")) return false;
   const text = segment.words
     .slice(segment.commandIndex)
     .map((word) => word.value)

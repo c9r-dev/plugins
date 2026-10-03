@@ -42,8 +42,11 @@ export type ShellSegment = {
   readonly words: readonly ShellToken[];
   /**
    * The index into `words` of the word the segment runs, or -1 when it runs nothing. Leading
-   * `VAR=x` assignments, `env` and its assignments, keywords (`do`, `then`, `time`, …) and a
-   * `cpu-lock.sh` wrapper are looked past, so `env A=1 cpu-lock.sh nx build` runs `nx`.
+   * `VAR=x` assignments, keywords (`do`, `then`, …) and the commands that run the words after them
+   * (`env`, `time`, `nice`, `nohup`, a `cpu-lock.sh` wrapper, by any path), with their `-option`
+   * words, are looked past, so `env A=1 cpu-lock.sh nx build` runs `nx`. Such a command with nothing
+   * after it is the word it runs, as in `cpu-lock.sh --status`. An option's value is not looked
+   * past: `nice -n 10 cargo test` reports `10`.
    */
   readonly commandIndex: number;
   readonly start: number;

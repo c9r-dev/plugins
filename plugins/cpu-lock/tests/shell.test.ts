@@ -102,6 +102,22 @@ describe("the command word", () => {
     expect(commandWords("while true; do sleep 10; done")).toEqual(["while", "sleep", "done"]);
   });
 
+  test("looks past nice, nohup and time, with their options", () => {
+    expect(commandWords("nice cargo build && nohup -- cargo test && time -p cargo bench")).toEqual([
+      "cargo",
+      "cargo",
+      "cargo",
+    ]);
+  });
+
+  test("looks past env by any path, with its options and assignments", () => {
+    expect(commandWords("/usr/bin/env -i A=1 ls")).toEqual(["ls"]);
+  });
+
+  test("is the prefix command itself when nothing follows it", () => {
+    expect(commandWords("env; time")).toEqual(["env", "time"]);
+  });
+
   test("reports `command` itself, so `command ls` is not a bare ls", () => {
     expect(commandWords("command ls -la")).toEqual(["command"]);
   });

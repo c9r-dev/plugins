@@ -14,9 +14,9 @@ class ShellParseError extends Error {
   }
 }
 
-/** A word naming `cpu-lock.sh` by any path, which runs the command after it. */
-export function namesWrapper(word: Token): boolean {
-  return !word.expands && word.value.split("/").at(-1) === "cpu-lock.sh";
+/** The command a word names: its basename, by any path. Null when it expands, so only the shell knows. */
+export function commandName(word: Token): string | null {
+  return word.expands ? null : (word.value.split("/").at(-1) ?? "");
 }
 
 /** Splits `command` into simple commands, or says why it cannot. */
@@ -35,7 +35,14 @@ const CONTROL_OPERATORS = ["&&", "||", ";;", ";", "|&", "|", "&", "\n"] as const
  * Shell keywords that introduce a command rather than being one. `commandWord` looks past them so
  * `do sleep 10` reports `sleep`.
  */
-const KEYWORDS = new Set(["do", "then", "else", "elif", "!", "{", "}", "time"]);
+const KEYWORDS = new Set(["do", "then", "else", "elif", "!", "{", "}"]);
+
+/**
+ * Commands that run the words after their own `-option` words as the program: `nice cargo test`
+ * runs cargo. An option's value is not skipped, so in `nice -n 10 cargo test` the `10` reads as the
+ * command word.
+ */
+const PREFIX_COMMANDS = new Set(["env", "time", "nice", "nohup", "cpu-lock.sh"]);
 
 const isBlank = (c: string): boolean => c === " " || c === "\t";
 
@@ -380,40 +387,26 @@ function segments(command: string): readonly Segment[] {
 }
 
 /**
- * The index into `words` of the word the segment runs: leading `VAR=x` assignments, an `env` and
- * the assignments it carries, shell keywords and a `cpu-lock.sh` wrapper with a command after it
- * are looked past. -1 when the segment runs nothing.
+ * The index into `words` of the word the segment runs: leading `VAR=x` assignments, shell keywords
+ * and a prefix command with its options are looked past. A prefix command with nothing after it is
+ * the word that runs; -1 when the segment runs nothing.
  */
 function findCommandIndex(words: readonly Token[]): number {
+  let prefix = -1;
   let i = 0;
   while (i < words.length) {
     const word = words[i] as Token;
-    if (isAssignment(word)) {
+    if (isAssignment(word) || (!word.quoted && !word.expands && KEYWORDS.has(word.value))) {
       i += 1;
       continue;
     }
-    if (!word.quoted && !word.expands && KEYWORDS.has(word.value)) {
+    if (PREFIX_COMMANDS.has(commandName(word) ?? "")) {
+      prefix = i;
       i += 1;
-      continue;
-    }
-    if (!word.quoted && !word.expands && word.value === "env") {
-      i += 1;
-      while (i < words.length && isAssignment(words[i] as Token)) i += 1;
-      continue;
-    }
-    if (isWrapperBefore(word, words[i + 1])) {
-      i += 1;
+      while (i < words.length && (words[i] as Token).value.startsWith("-")) i += 1;
       continue;
     }
     return i;
   }
-  return -1;
-}
-
-/**
- * `word` names the wrapper and `next` is the command it runs. A word starting with `-` is one of
- * the wrapper's own options (`--status`), so the wrapper itself is what runs.
- */
-function isWrapperBefore(word: Token, next: Token | undefined): boolean {
-  return namesWrapper(word) && next !== undefined && !next.value.startsWith("-");
+  return prefix;
 }
