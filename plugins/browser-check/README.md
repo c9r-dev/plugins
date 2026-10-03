@@ -2,11 +2,10 @@
 
 A Claude Code and Codex plugin that runs a checklist written in plain English in a real browser. Each line is
 an action ("Select the Generate Link button", `Type "Acme" into the Name field`) or a check ("Confirm the report
-lists three risks"), and a judgment model decides each step. [Playwright](https://playwright.dev) drives the
-browser; TypeSafe's Jev model, served on [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) as
-`typesafe/jev`, picks the element for each action from the page's accessibility tree and judges each check.
+lists three risks"). [Playwright](https://playwright.dev) drives the browser, and a judgment model decides each
+step: which element an action means, and whether a check holds.
 
-A 24-step flow runs in about 35 seconds for about a cent of Jev calls. Driving the same flow through a browser
+A 24-step flow runs in about 35 seconds for about a cent of judgment calls. Driving the same flow through a browser
 extension took Claude 14 minutes.
 
 ## What it is for
@@ -104,7 +103,8 @@ mv ~/.config/jev-browse ~/.config/browser-check
 
 ## Requirements
 
-- **A Cloudflare account with Workers AI access**, and an API token that can run Workers AI models. Put both in
+- **A Cloudflare account with Workers AI access**, where the judgment model (TypeSafe's Jev, `typesafe/jev`) runs,
+  and an API token that can run Workers AI models. Put both in
   `~/.config/jev/env` (or a file named by `$JEV_ENV_FILE`):
 
   ```bash
