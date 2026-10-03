@@ -22,6 +22,8 @@ codex plugin add <plugin>@c9r
 
 - [browser-check](plugins/browser-check/README.md) — run a plain-English QA checklist in a real browser, with a
   judgment model deciding each step.
+- [browser-check-visual](plugins/browser-check-visual/README.md) — judge browser-check's visual steps (layout,
+  colour, clipping, icons) from a screenshot with a vision judgment model.
 
 ## Releases
 
