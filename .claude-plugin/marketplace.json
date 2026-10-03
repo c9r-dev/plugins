@@ -1,11 +1,14 @@
 {
-  "name": "jev-playwright",
-  "owner": { "name": "cooper667" },
+  "name": "c9r",
+  "description": "Claude Code and Codex plugins from c9r.",
+  "owner": {
+    "name": "c9r-dev"
+  },
   "plugins": [
     {
-      "name": "jev-playwright",
-      "source": "./",
-      "description": "Run a plain-English QA checklist in a real browser, with TypeSafe's Jev judging each step."
+      "name": "browser-check",
+      "source": "./plugins/browser-check",
+      "description": "Run a plain-English QA checklist in a real browser, with a judgment model deciding each step."
     }
   ]
 }
