@@ -4,7 +4,8 @@
 #   run.sh <steps-file> --app NAME [--worktree DIR] [--project NAME] [--output DIR] [--headed] [--trace] [--screenshots] [-- playwright args]
 #
 # --url starts from any page with no fixtures; pass a Playwright storage-state file to start logged in. It runs
-# under the standalone config copied to <worktree>/.browser-check/.
+# under a standalone config in a temporary directory, with the @playwright/test the worktree resolves (else the one
+# behind `playwright` on PATH); see runner/playwright-package.mjs.
 # --app NAME starts from an app's own e2e fixture, as defined by the manifest NAME.env + NAME.spec.ts in
 # ${XDG_CONFIG_HOME:-~/.config}/browser-check/apps/. NAME.env is a shell fragment setting E2E_DIR (the app's e2e
 # directory, relative to the worktree) and RUN (the command that runs qa.spec.ts under the app's Playwright config);
@@ -92,15 +93,17 @@ if [ -n "$app" ]; then
 fi
 
 if [ -n "$url" ]; then
-  dir=$worktree/.browser-check
-  [ -f "$worktree/node_modules/.bin/playwright" ] || { echo "browser-check: $worktree has no Playwright install (node_modules/.bin/playwright); pass --worktree" >&2; exit 2; }
-  mkdir -p "$dir/engine"
+  playwright=$(node "$SKILL_DIR/runner/playwright-package.mjs" "$worktree") || exit 2
+  # The spec's own import of @playwright/test must reach the package the CLI runs from, so the run directory links it.
+  dir=$(mktemp -d "${tmp%/}/browser-check-run.XXXXXX")
+  mkdir -p "$dir/engine" "$dir/node_modules/@playwright"
+  ln -s "$playwright" "$dir/node_modules/@playwright/test"
   cp -f "$SKILL_DIR"/runner/engine/*.ts "$dir/engine/"
   cp -f "$SKILL_DIR/runner/browse.spec.ts" "$SKILL_DIR/runner/browse.config.ts" "$dir/"
   export QA_START_URL=$url
   [ -n "$storage" ] && export QA_STORAGE_STATE=$storage
   # shellcheck disable=SC2086
-  run_then_remove "$dir" node_modules/.bin/playwright test -c .browser-check/browse.config.ts "--project=$project" "--output=$out" $headed "$@"
+  run_then_remove "$dir" node "$playwright/cli.js" test -c "$dir/browse.config.ts" "--project=$project" "--output=$out" $headed "$@"
 fi
 
 echo "browser-check: pass --url <URL> or --app <NAME>" >&2
