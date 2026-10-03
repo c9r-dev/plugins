@@ -51,8 +51,8 @@ Before calling it, the caller has already made sure that:
 The skill checks none of that. A run against the wrong build passes or fails on that build.
 
 Its one dependency of its own: a file exporting `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for an account
-with Workers AI access, at `$JEV_ENV_FILE` or `~/.config/jev/env`. If it is missing, ask the user; never search
-for credentials.
+with Workers AI access, at `$JEV_ENV_FILE` or `~/.config/jev/env`. If that file is missing, ask the user; never search
+for credentials. An optional `CLOUDFLARE_AI_GATEWAY` in it routes every call through that AI Gateway.
 
 It uses the Playwright and browser already on the machine; it never installs or pins either:
 

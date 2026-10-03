@@ -76,7 +76,9 @@ const credentials = () => {
       "Jev needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in the environment",
     );
   }
-  return { accountId, token };
+  /* Names the AI Gateway to route through, so a gateway on Unified billing pays from its credit. */
+  const gateway = process.env.CLOUDFLARE_AI_GATEWAY;
+  return { accountId, token, gateway };
 };
 
 /**
@@ -87,7 +89,7 @@ export const askJev = async <Qs extends Record<string, Question>>(
   state: unknown,
   questions: Qs,
 ): Promise<RunResult<Qs>> => {
-  const { accountId, token } = credentials();
+  const { accountId, token, gateway } = credentials();
   const started = Date.now();
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run`,
@@ -96,6 +98,7 @@ export const askJev = async <Qs extends Record<string, Question>>(
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(gateway ? { "cf-aig-gateway-id": gateway } : {}),
       },
       body: JSON.stringify({
         model: "typesafe/jev",
