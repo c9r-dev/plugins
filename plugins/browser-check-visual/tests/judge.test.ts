@@ -6,7 +6,10 @@ import judge from "../judge.mjs";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 const input = { claim: "Confirm the logo is centred", claimNumber: 2, checklist: ["Open /", "Confirm the logo is centred"], screenshot: PNG };
 const realFetch = globalThis.fetch;
-const SETTINGS = ["BROWSER_CHECK_VISUAL_ACCOUNT_ID", "BROWSER_CHECK_VISUAL_API_TOKEN", "BROWSER_CHECK_VISUAL_AI_GATEWAY", "BROWSER_CHECK_VISUAL_MODEL"];
+const SETTINGS = ["ACCOUNT_ID", "API_TOKEN", "AI_GATEWAY", "MODEL"].flatMap((name) => [
+  `BROWSER_CHECK_VISUAL_${name}`,
+  `CLOUDFLARE_${name}`,
+]);
 
 type Request = { url: string; headers: Record<string, string>; body: any };
 
@@ -24,8 +27,9 @@ const scored = (noul: number) => ({ result: { answers: { holds: { type: "noul", 
 
 describe("browser-check-visual judge", () => {
   beforeEach(() => {
-    process.env.BROWSER_CHECK_VISUAL_ACCOUNT_ID = "acct";
-    process.env.BROWSER_CHECK_VISUAL_API_TOKEN = "tok";
+    for (const name of SETTINGS) delete process.env[name];
+    process.env.CLOUDFLARE_ACCOUNT_ID = "acct";
+    process.env.CLOUDFLARE_API_TOKEN = "tok";
   });
   afterEach(() => {
     globalThis.fetch = realFetch;
@@ -45,8 +49,20 @@ describe("browser-check-visual judge", () => {
     assert.equal(sent.body.input.questions.holds.type, "noul");
   });
 
+  it("prefers its own settings over Cloudflare's standard ones", async () => {
+    process.env.BROWSER_CHECK_VISUAL_ACCOUNT_ID = "visual-acct";
+    process.env.BROWSER_CHECK_VISUAL_API_TOKEN = "visual-tok";
+    process.env.CLOUDFLARE_AI_GATEWAY = "shared-gw";
+    process.env.BROWSER_CHECK_VISUAL_AI_GATEWAY = "visual-gw";
+    const requests = respond(200, scored(0.9));
+    await judge(input);
+    assert.equal(requests[0]!.url, "https://api.cloudflare.com/client/v4/accounts/visual-acct/ai/run");
+    assert.equal(requests[0]!.headers.Authorization, "Bearer visual-tok");
+    assert.equal(requests[0]!.headers["cf-aig-gateway-id"], "visual-gw");
+  });
+
   it("sends the gateway id and uses the configured model when set", async () => {
-    process.env.BROWSER_CHECK_VISUAL_AI_GATEWAY = "gw";
+    process.env.CLOUDFLARE_AI_GATEWAY = "gw";
     process.env.BROWSER_CHECK_VISUAL_MODEL = "@cf/cloudflare/clef-flash";
     const requests = respond(200, scored(0.9));
     await judge(input);
@@ -75,8 +91,8 @@ describe("browser-check-visual judge", () => {
   });
 
   it("throws when its own credentials are missing", async () => {
-    delete process.env.BROWSER_CHECK_VISUAL_API_TOKEN;
+    delete process.env.CLOUDFLARE_API_TOKEN;
     respond(200, scored(0.9));
-    await assert.rejects(judge(input), /set BROWSER_CHECK_VISUAL_API_TOKEN/);
+    await assert.rejects(judge(input), /set CLOUDFLARE_API_TOKEN \(or BROWSER_CHECK_VISUAL_API_TOKEN\)/);
   });
 });

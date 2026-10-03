@@ -2,12 +2,13 @@
 // Cloudflare Workers AI whether the full-page screenshot satisfies the claim. It passes the step at a yes-probability
 // of PASS_AT or more and hands it back otherwise; any failure throws, which browser-check reports and hands back.
 //
-// Settings, from the environment:
-//   BROWSER_CHECK_VISUAL_ACCOUNT_ID  Cloudflare account with Workers AI access (required)
-//   BROWSER_CHECK_VISUAL_API_TOKEN   API token that can run Workers AI models (required)
-//   BROWSER_CHECK_VISUAL_AI_GATEWAY  AI Gateway id, sent as cf-aig-gateway-id; a gateway on Unified billing pays from
-//                                    its credit instead of the free daily allocation (optional)
-//   BROWSER_CHECK_VISUAL_MODEL       Workers AI model (default @cf/cloudflare/clef)
+// Settings, from the environment. Each Cloudflare one is read as BROWSER_CHECK_VISUAL_<NAME> when set, else as
+// Cloudflare's own CLOUDFLARE_<NAME>, so the judge shares the usual credentials unless told otherwise:
+//   ACCOUNT_ID   Cloudflare account with Workers AI access (required)
+//   API_TOKEN    API token that can run Workers AI models (required)
+//   AI_GATEWAY   AI Gateway id, sent as cf-aig-gateway-id; a gateway on Unified billing pays from its credit instead
+//                of the free daily allocation (optional)
+// and BROWSER_CHECK_VISUAL_MODEL, the Workers AI model (default @cf/cloudflare/clef).
 
 const DEFAULT_MODEL = "@cf/cloudflare/clef";
 
@@ -29,18 +30,21 @@ const QUESTIONS = {
   },
 };
 
-function setting(name) {
-  const value = process.env[name];
+/** A Cloudflare setting: the judge's own override, else Cloudflare's standard variable. */
+const cloudflare = (name) => process.env[`BROWSER_CHECK_VISUAL_${name}`] || process.env[`CLOUDFLARE_${name}`];
+
+function required(name) {
+  const value = cloudflare(name);
   if (!value) {
-    throw new Error(`set ${name} for the browser-check-visual judge`);
+    throw new Error(`set CLOUDFLARE_${name} (or BROWSER_CHECK_VISUAL_${name}) for the browser-check-visual judge`);
   }
   return value;
 }
 
 export default async function judge({ claim, claimNumber, checklist, screenshot }) {
-  const account = setting("BROWSER_CHECK_VISUAL_ACCOUNT_ID");
-  const token = setting("BROWSER_CHECK_VISUAL_API_TOKEN");
-  const gateway = process.env.BROWSER_CHECK_VISUAL_AI_GATEWAY;
+  const account = required("ACCOUNT_ID");
+  const token = required("API_TOKEN");
+  const gateway = cloudflare("AI_GATEWAY");
   const model = process.env.BROWSER_CHECK_VISUAL_MODEL || DEFAULT_MODEL;
 
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run`, {

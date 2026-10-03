@@ -27,15 +27,20 @@ absolute path of the installed `judge.mjs`.
 
 ## Settings
 
-Its own Cloudflare credentials, separate from however browser-check reaches its text model. Export them from
-browser-check's env file (`~/.config/jev/env`, or the file `$JEV_ENV_FILE` names) or your shell:
+It uses Cloudflare's standard variables, so if browser-check already reaches Jev through Cloudflare there is nothing
+to add. Put them in browser-check's env file (`~/.config/jev/env`, or the file `$JEV_ENV_FILE` names) or your shell:
 
 ```bash
-export BROWSER_CHECK_VISUAL_ACCOUNT_ID=…   # a Cloudflare account with Workers AI access
-export BROWSER_CHECK_VISUAL_API_TOKEN=…    # a token that can run Workers AI models
-export BROWSER_CHECK_VISUAL_AI_GATEWAY=…   # optional, an AI Gateway id
-export BROWSER_CHECK_VISUAL_MODEL=…        # optional, default @cf/cloudflare/clef
+export CLOUDFLARE_ACCOUNT_ID=…   # a Cloudflare account with Workers AI access
+export CLOUDFLARE_API_TOKEN=…    # a token that can run Workers AI models
+export CLOUDFLARE_AI_GATEWAY=…   # optional, an AI Gateway id
+export BROWSER_CHECK_VISUAL_MODEL=…   # optional, default @cf/cloudflare/clef
 ```
+
+To give the judge different Cloudflare settings from core's, set `BROWSER_CHECK_VISUAL_ACCOUNT_ID`,
+`BROWSER_CHECK_VISUAL_API_TOKEN` or `BROWSER_CHECK_VISUAL_AI_GATEWAY`; each overrides its `CLOUDFLARE_` counterpart.
+It needs Cloudflare even when browser-check reaches Jev through TypeSafe's API, since the vision model runs on Workers
+AI.
 
 Set the gateway for regular use. Without one, calls draw on Workers AI's free daily allocation of 10,000 neurons and
 fail once it runs out; through a gateway on Unified billing they are paid from its credit. A failed call is never a
