@@ -9,8 +9,9 @@ queues them instead.
 Requires macOS (`/usr/bin/lockf`). The lock is a kernel flock, released whenever its holder dies,
 for any reason including `SIGKILL`, so a crashed run never wedges the queue.
 
-The repository is two things: the lock itself, a shell script you can use on its own, and a
-Claude Code plugin that routes an agent's heavy commands through it.
+It is two things: the lock itself, a shell script you can use on its own, and a Claude Code
+plugin that routes an agent's heavy commands through it. The plugin is for Claude Code only; Codex
+does not load it.
 
 ## Usage
 
@@ -26,10 +27,11 @@ A queued run says what it is waiting behind. State lives in `${XDG_CACHE_HOME:-~
 `worktree`, `branch`, `started`, `command`, `session`; the holder adds `epoch` and `budget`). A
 record whose process has died is stale; readers check liveness and ignore it.
 
-To use the script without the plugin, put it on your `PATH`:
+To use the script without the plugin, put it on your `PATH` from a checkout of
+[c9r-dev/plugins](https://github.com/c9r-dev/plugins):
 
 ```bash
-ln -s "$PWD/cpu-lock.sh" /usr/local/bin/cpu-lock.sh
+ln -s "$PWD/plugins/cpu-lock/cpu-lock.sh" /usr/local/bin/cpu-lock.sh
 ```
 
 ## Which commands are heavy: `.claude/cpu-lock`
@@ -59,16 +61,15 @@ automatically, which in Claude Code is the plugin below.
 
 ## The Claude Code plugin
 
-The repository root is the plugin. It is written as function hooks, which are early access:
-`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` must be in the environment, or in `env` in
-`~/.claude/settings.json`.
+It is written as function hooks, which are early access: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` must
+be in the environment, or in `env` in `~/.claude/settings.json`.
 
-```bash
-claude plugin marketplace add <path or git URL of this repository>
-claude plugin install cpu-lock@cpu-lock
+```text
+/plugin marketplace add c9r-dev/plugins
+/plugin install cpu-lock@c9r
 ```
 
-or, for one session, `claude --plugin-dir <this repository>`.
+or, for one session, `claude --plugin-dir <checkout>/plugins/cpu-lock`.
 
 It does three things.
 
@@ -126,8 +127,10 @@ plugin runs first, the command that reaches the shell is the same.
 
 ### Developing it
 
+From `plugins/cpu-lock`:
+
 ```bash
-CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test .
+CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 npm test    # claude plugin test .
 CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate .claude-plugin/plugin.json
 ```
 
