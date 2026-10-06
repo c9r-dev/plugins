@@ -1,0 +1,28 @@
+{
+  "rules": [
+    {
+      "id": "restating-comment",
+      "question": "Do the added lines include a comment that only restates what the code next to it already does, such as `// increment i`, `// return the user`, or a doc comment that repeats the function's name and parameters? A comment that argues why the code is safe or correct is not a restatement, even when it names the same values the code checks: for example a `SAFETY:` comment justifying a cast or assertion, or a note on why a check is enough. Answer no if the added lines add no comment, or if every added comment says something the code cannot: why it is safe or correct, why this approach, a constraint, a side effect, a link, or a TODO.",
+      "cutoff": 0.8,
+      "files": ["**/*.ts", "**/*.mts", "**/*.vue"]
+    },
+    {
+      "id": "hidden-write",
+      "question": "Do the added lines make a function whose name promises a pure read (it starts with get, is, has, find, compute, read, format or to) write something: mutate its arguments or state outside the function, send a POST, PUT, PATCH or DELETE request, or write to storage? Answer no if the name announces the effect (save, set, update, create, delete, send, sync, ensure, load), if the only write is caching the function's own result, or if the added lines only read.",
+      "cutoff": 0.8,
+      "files": ["**/*.ts", "**/*.mts", "**/*.vue"]
+    },
+    {
+      "id": "swallowed-error",
+      "question": "Do the added lines catch an error and then let it vanish: the catch block neither rethrows, returns a failure value such as null or false, logs it, nor reports it to the user? Answer no if the added lines add or change no catch, or if every such catch does at least one of those.",
+      "cutoff": 0.8,
+      "files": ["**/*.ts", "**/*.mts", "**/*.vue"]
+    },
+    {
+      "id": "template-logic",
+      "question": "Do the added lines put business logic in a Vue `<template>`: an expression that calculates, filters, sorts, maps or formats data, or that chains several conditions, where a computed property or a function in `<script setup>` should hold it? Answer no if the added lines are not inside `<template>`, or if every added template expression only binds a value, compares one value, negates one value, or calls one function.",
+      "cutoff": 0.8,
+      "files": ["**/*.vue"]
+    }
+  ]
+}

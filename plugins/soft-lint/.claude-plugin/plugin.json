@@ -1,0 +1,8 @@
+{
+  "name": "soft-lint",
+  "description": "Ask a classifier plain-English yes/no questions about the lines a diff adds, after each edit or over a branch.",
+  "version": "0.1.0",
+  "author": { "name": "cooper667" },
+  "repository": "https://github.com/c9r-dev/plugins",
+  "license": "MIT"
+}

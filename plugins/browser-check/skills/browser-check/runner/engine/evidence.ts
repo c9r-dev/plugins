@@ -1,7 +1,7 @@
 import type { StepStatus } from "./runner";
 
 /**
- * Whether a step's evidence (its screenshot and the tree Jev judged) is written to disk: every step that did not
+ * Whether a step's evidence (its screenshot and the tree the classifier judged) is written to disk: every step that did not
  * pass, and every step when `everyStep` asks for a record of the whole run.
  */
 export const keepsEvidence = (status: StepStatus, everyStep: boolean) =>

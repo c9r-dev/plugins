@@ -1,7 +1,7 @@
 {
   "name": "browser-check-visual",
-  "description": "Judge browser-check's visual steps (layout, colour, clipping, icons) from a screenshot with a vision judgment model.",
-  "version": "0.1.0",
+  "description": "Judge browser-check's visual steps (layout, colour, clipping, icons) from a screenshot with a vision classifier.",
+  "version": "0.2.0",
   "author": { "name": "cooper667" },
   "repository": "https://github.com/c9r-dev/plugins",
   "license": "MIT"

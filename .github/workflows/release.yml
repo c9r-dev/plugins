@@ -10,9 +10,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      soft-lint: ${{ steps.release.outputs.soft-lint }}
     steps:
       - uses: actions/checkout@v4
       - name: Release each plugin whose plugin.json version is new
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -29,7 +32,37 @@ jobs:
               previous=$(git ls-remote --tags --refs origin "refs/tags/$name-v*" | sed 's|.*refs/tags/||' | sort -V | tail -n 1)
               gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes \
                 ${previous:+--notes-start-tag "$previous"}
+              echo "$name=released" >> "$GITHUB_OUTPUT"
             else
               exit "$status"
             fi
           done
+
+  # soft-lint is also an npm package. Its package.json carries a placeholder version; the plugin.json version just
+  # released is stamped in here, so the plugin and the package share one version.
+  publish-soft-lint:
+    needs: release
+    if: needs.release.outputs.soft-lint == 'released'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC)
+    defaults:
+      run:
+        working-directory: plugins/soft-lint
+    steps:
+      - uses: actions/checkout@v4
+      # No registry-url: setup-node would then write an .npmrc auth token, which npm would use instead of OIDC.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@^11.5.1
+      - name: Install dev dependencies
+        run: corepack enable && yarn install --immutable
+      - run: yarn typecheck
+      - run: node --test
+      - name: Stamp the released version
+        run: npm pkg set version="$(jq -r .version .claude-plugin/plugin.json)"
+      # prepack builds dist/; trusted publishing adds provenance.
+      - run: npm publish

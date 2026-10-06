@@ -13,15 +13,33 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Test each plugin
+      - name: Test each plugin and the shared code
         run: |
           failed=""
-          for plugin in plugins/*/; do
-            echo "::group::$plugin"
-            (cd "$plugin" && node --test) || failed="$failed $plugin"
+          for dir in shared/ plugins/*/; do
+            echo "::group::$dir"
+            (cd "$dir" && node --test) || failed="$failed $dir"
             echo "::endgroup::"
           done
           if [ -n "$failed" ]; then
             echo "Failed:$failed"
             exit 1
           fi
+
+  typecheck:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [shared, plugins/soft-lint, plugins/browser-check-visual]
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dev dependencies
+        run: corepack enable && yarn install --immutable
+      - run: yarn typecheck

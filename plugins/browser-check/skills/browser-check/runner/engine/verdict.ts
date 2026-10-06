@@ -1,6 +1,6 @@
 import type { StepResult } from "./runner";
 
-/** A step that decides PASS or FAIL: judged by Jev, with nothing about it flagged. */
+/** A step that decides PASS or FAIL: judged by the classifier, with nothing about it flagged. */
 export const isDecisive = (step: StepResult) =>
   step.flag === "ok" && step.status !== "unsupported";
 

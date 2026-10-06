@@ -1,7 +1,7 @@
 {
   "name": "browser-check",
-  "description": "Run a plain-English QA checklist in a real browser, with a judgment model deciding each step.",
-  "version": "0.8.0",
+  "description": "Run a plain-English QA checklist in a real browser, with a classifier deciding each step.",
+  "version": "0.9.0",
   "author": { "name": "cooper667" },
   "repository": "https://github.com/c9r-dev/plugins",
   "license": "MIT"
