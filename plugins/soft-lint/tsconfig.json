@@ -11,5 +11,5 @@
     "noUncheckedIndexedAccess": true,
     "outDir": "dist"
   },
-  "include": ["*.ts", "tests/*.ts"]
+  "include": ["*.ts", "hooks/*.ts", "tests/*.ts"]
 }

@@ -17,9 +17,6 @@ export type HunkCheck =
   | { ok: true; findings: Finding[]; request: ClassifierRequest }
   | { ok: false; path: string; reason: string };
 
-const truncate = (text: string, maxChars: number): string =>
-  text.length <= maxChars ? text : `${text.slice(0, maxChars)}\n[...truncated]`;
-
 const instructionsFor = (question: string): string =>
   `Judge only the added lines (those starting with "+") of state.hunk, a hunk of the unified diff of state.path; ` +
   `use its other lines only as context. ${question}`;
@@ -51,20 +48,19 @@ export function requestInput(
   };
 }
 
-/** One hunk and the rules whose globs match its path; at least one, or there is nothing to ask. */
+/**
+ * One window of a hunk (see `windowsOf`) and the rules whose globs match its path; at least one, or there is nothing
+ * to ask.
+ */
 export type HunkToCheck = { path: string; hunk: Hunk; rules: Rule[] };
 
-type CheckOptions = { model: Model; maxHunkChars: number; timeoutMs: number };
+type CheckOptions = { model: Model; timeoutMs: number };
 
 async function ask(
   { path, hunk, rules }: HunkToCheck,
   options: CheckOptions,
 ): Promise<HunkCheck> {
-  const { state, questions } = requestInput(
-    path,
-    truncate(hunk.text, options.maxHunkChars),
-    rules,
-  );
+  const { state, questions } = requestInput(path, hunk.text, rules);
   const reply = await classify(
     process.env,
     options.model,

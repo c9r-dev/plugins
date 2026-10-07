@@ -31,8 +31,17 @@ A rule is `{ "id", "question", "cutoff", "files" }`. Work it through this loop u
 7. **Repeat** from step 3. Set the real cutoff above the false positives' scores and below the true ones'; 0.8 is a
    good start.
 
+After a session or two of real use, review the after-edit hook's run log, `${CLAUDE_PLUGIN_DATA}/runs.jsonl`: which
+rules fire, at what scores, and on which files. A rule that fires often on code you accept is a rewording candidate,
+from step 5; one that never fires may be too narrow, or not needed. Findings per rule:
+
+```bash
+jq -r '.findings[].rule' "${CLAUDE_PLUGIN_DATA}/runs.jsonl" | sort | uniq -c | sort -rn
+```
+
 Keep one rule to one defect: when a question asks two things, a finding cannot say which one fired.
 
 Through a Cloudflare AI Gateway, a changed question is a new cache key but a changed cutoff is not, so a rerun after
 retuning only cutoffs is answered from the cache. The cutoffs are tuned for the rules file's model: moving to another
 model family (Jev to Clef) means re-tuning every cutoff, from step 3; the same model through another provider does not.
+Re-tune `maxHunkChars` too when you change model: sweep it on the same data and keep the largest size that loses no hit.

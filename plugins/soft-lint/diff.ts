@@ -148,3 +148,17 @@ export function parseDiff(diff: string): ChangedFile[] {
     return path === null || added.length === 0 ? [] : [{ path, hunks: added }];
   });
 }
+
+/**
+ * The new-side line number of each line of a hunk's text after its header, as `parseDiff` counts them: a removed line
+ * gets the number of the next line on the new side.
+ */
+export function newSideLineNumbers(text: string): number[] {
+  const [header = "", ...body] = text.split("\n");
+  const hunk = openHunk(header);
+  return body.map((line) => {
+    const number = hunk.nextNewLine;
+    consume(hunk, line);
+    return number;
+  });
+}

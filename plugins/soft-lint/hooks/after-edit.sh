@@ -1,9 +1,10 @@
 #!/bin/bash
 # PostToolUse hook: runs soft-lint over the edited file's uncommitted change and hands any findings to the agent as
 # advisory context. It acts only in a git repo with a .soft-lint.json at its root, and never fails the edit: when
-# soft-lint cannot run it leaves one line on stderr and exits 0.
+# soft-lint cannot run it leaves one line on stderr and exits 0. Each run it makes appends one line to
+# $CLAUDE_PLUGIN_DATA/runs.jsonl, for reviewing how the rules behave in real use.
 set -u
-cli=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/cli.ts
+plugin=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 file=$(node -e 'const input = JSON.parse(require("fs").readFileSync(0, "utf8")); process.stdout.write(input.tool_input?.file_path ?? "")') || exit 0
 [ -f "$file" ] || exit 0
@@ -23,20 +24,8 @@ else
 fi
 [ -n "$diff" ] || exit 0
 
-errors=$(mktemp)
-findings=$(printf '%s\n' "$diff" | node "$cli" "$rules" 2> "$errors")
+# respond.ts turns soft-lint's report into the agent's context, the stderr line on exit 2 and the run log line.
+report=$(printf '%s\n' "$diff" | node "$plugin/cli.ts" --json "$rules")
 status=$?
-if [ "$status" -eq 2 ]; then
-  # The first reason it could not ask the classifier, else the run's own error, which is its last line.
-  reason=$(grep -m 1 'could not ask the classifier' "$errors" || tail -n 1 "$errors")
-  echo "soft-lint: could not run on $path: ${reason#soft-lint: }" >&2
-fi
-rm -f "$errors"
-
-# Exit 2 can still carry findings from the hunks that were checked.
-if [ -n "$findings" ]; then
-  context="soft-lint findings on your edit to $path. They are advisory: a classifier's yes/no on the added lines, not a lint error. Fix the ones you agree with; ignore the rest.
-$findings"
-  node -e 'process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: process.argv[1] } }))' "$context"
-fi
+printf '%s' "$report" | node "$plugin/hooks/respond.ts" "$root" "$path" "$status"
 exit 0

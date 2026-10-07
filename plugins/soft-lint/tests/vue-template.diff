@@ -1,0 +1,342 @@
+diff --git a/Budget.vue b/Budget.vue
+index b027bf1..2b8e91b 100644
+--- a/Budget.vue
++++ b/Budget.vue
+@@ -1,336 +1,337 @@
+ <template>
+   <div class="panel">
+     <div class="row-1 flex gap-2">
+       <span>{{ t('row.1') }}</span>
+     </div>
+     <div class="row-2 flex gap-2">
+       <span>{{ t('row.2') }}</span>
+     </div>
+     <div class="row-3 flex gap-2">
+       <span>{{ t('row.3') }}</span>
+     </div>
+     <div class="row-4 flex gap-2">
+       <span>{{ t('row.4') }}</span>
+     </div>
+     <div class="row-5 flex gap-2">
+       <span>{{ t('row.5') }}</span>
+     </div>
+     <div class="row-6 flex gap-2">
+       <span>{{ t('row.6') }}</span>
+     </div>
+     <div class="row-7 flex gap-2">
+       <span>{{ t('row.7') }}</span>
+     </div>
+     <div class="row-8 flex gap-2">
+       <span>{{ t('row.8') }}</span>
+     </div>
+     <div class="row-9 flex gap-2">
+       <span>{{ t('row.9') }}</span>
+     </div>
+     <div class="row-10 flex gap-2">
+       <span>{{ t('row.10') }}</span>
+     </div>
+     <div class="row-11 flex gap-2">
+       <span>{{ t('row.11') }}</span>
+     </div>
+     <div class="row-12 flex gap-2">
+       <span>{{ t('row.12') }}</span>
+     </div>
+     <div class="row-13 flex gap-2">
+       <span>{{ t('row.13') }}</span>
+     </div>
+     <div class="row-14 flex gap-2">
+       <span>{{ t('row.14') }}</span>
+     </div>
+     <div class="row-15 flex gap-2">
+       <span>{{ t('row.15') }}</span>
+     </div>
+     <div class="row-16 flex gap-2">
+       <span>{{ t('row.16') }}</span>
+     </div>
+     <div class="row-17 flex gap-2">
+       <span>{{ t('row.17') }}</span>
+     </div>
+     <div class="row-18 flex gap-2">
+       <span>{{ t('row.18') }}</span>
+     </div>
+     <div class="row-19 flex gap-2">
+       <span>{{ t('row.19') }}</span>
+     </div>
+     <div class="row-20 flex gap-2">
+       <span>{{ t('row.20') }}</span>
+     </div>
+     <div class="row-21 flex gap-2">
+       <span>{{ t('row.21') }}</span>
+     </div>
+     <div class="row-22 flex gap-2">
+       <span>{{ t('row.22') }}</span>
+     </div>
+     <div class="row-23 flex gap-2">
+       <span>{{ t('row.23') }}</span>
+     </div>
+     <div class="row-24 flex gap-2">
+       <span>{{ t('row.24') }}</span>
+     </div>
+     <div class="row-25 flex gap-2">
+       <span>{{ t('row.25') }}</span>
+     </div>
+     <div class="row-26 flex gap-2">
+       <span>{{ t('row.26') }}</span>
+     </div>
+     <div class="row-27 flex gap-2">
+       <span>{{ t('row.27') }}</span>
+     </div>
+     <div class="row-28 flex gap-2">
+       <span>{{ t('row.28') }}</span>
+     </div>
+     <div class="row-29 flex gap-2">
+       <span>{{ t('row.29') }}</span>
+     </div>
+     <div class="row-30 flex gap-2">
+       <span>{{ t('row.30') }}</span>
+     </div>
+     <div class="row-31 flex gap-2">
+       <span>{{ t('row.31') }}</span>
+     </div>
+     <div class="row-32 flex gap-2">
+       <span>{{ t('row.32') }}</span>
+     </div>
+     <div class="row-33 flex gap-2">
+       <span>{{ t('row.33') }}</span>
+     </div>
+     <div class="row-34 flex gap-2">
+       <span>{{ t('row.34') }}</span>
+     </div>
+     <div class="row-35 flex gap-2">
+       <span>{{ t('row.35') }}</span>
+     </div>
+     <div class="row-36 flex gap-2">
+       <span>{{ t('row.36') }}</span>
+     </div>
+     <div class="row-37 flex gap-2">
+       <span>{{ t('row.37') }}</span>
+     </div>
+     <div class="row-38 flex gap-2">
+       <span>{{ t('row.38') }}</span>
+     </div>
+     <div class="row-39 flex gap-2">
+       <span>{{ t('row.39') }}</span>
+     </div>
+     <div class="row-40 flex gap-2">
+       <span>{{ t('row.40') }}</span>
+     </div>
+     <div class="row-41 flex gap-2">
+       <span>{{ t('row.41') }}</span>
+     </div>
+     <div class="row-42 flex gap-2">
+       <span>{{ t('row.42') }}</span>
+     </div>
+     <div class="row-43 flex gap-2">
+       <span>{{ t('row.43') }}</span>
+     </div>
+     <div class="row-44 flex gap-2">
+       <span>{{ t('row.44') }}</span>
+     </div>
+     <div class="row-45 flex gap-2">
+       <span>{{ t('row.45') }}</span>
+     </div>
+     <div class="row-46 flex gap-2">
+       <span>{{ t('row.46') }}</span>
+     </div>
+     <div class="row-47 flex gap-2">
+       <span>{{ t('row.47') }}</span>
+     </div>
+     <div class="row-48 flex gap-2">
+       <span>{{ t('row.48') }}</span>
+     </div>
+     <div class="row-49 flex gap-2">
+       <span>{{ t('row.49') }}</span>
+     </div>
+     <div class="row-50 flex gap-2">
+       <span>{{ t('row.50') }}</span>
+     </div>
+     <div class="row-51 flex gap-2">
+       <span>{{ t('row.51') }}</span>
+     </div>
+     <div class="row-52 flex gap-2">
+       <span>{{ t('row.52') }}</span>
+     </div>
+     <div class="row-53 flex gap-2">
+       <span>{{ t('row.53') }}</span>
+     </div>
+     <div class="row-54 flex gap-2">
+       <span>{{ t('row.54') }}</span>
+     </div>
+     <div class="row-55 flex gap-2">
+       <span>{{ t('row.55') }}</span>
+     </div>
+     <div class="row-56 flex gap-2">
+       <span>{{ t('row.56') }}</span>
+     </div>
+     <div class="row-57 flex gap-2">
+       <span>{{ t('row.57') }}</span>
+     </div>
+     <div class="row-58 flex gap-2">
+       <span>{{ t('row.58') }}</span>
+     </div>
+     <div class="row-59 flex gap-2">
+       <span>{{ t('row.59') }}</span>
+     </div>
+     <div class="row-60 flex gap-2">
+       <span>{{ t('row.60') }}</span>
+     </div>
+     <div class="row-61 flex gap-2">
+       <span>{{ t('row.61') }}</span>
+     </div>
+     <div class="row-62 flex gap-2">
+       <span>{{ t('row.62') }}</span>
+     </div>
+     <div class="row-63 flex gap-2">
+       <span>{{ t('row.63') }}</span>
+     </div>
+     <div class="row-64 flex gap-2">
+       <span>{{ t('row.64') }}</span>
+     </div>
+     <div class="row-65 flex gap-2">
+       <span>{{ t('row.65') }}</span>
+     </div>
+     <div class="row-66 flex gap-2">
+       <span>{{ t('row.66') }}</span>
+     </div>
+     <div class="row-67 flex gap-2">
+       <span>{{ t('row.67') }}</span>
+     </div>
+     <div class="row-68 flex gap-2">
+       <span>{{ t('row.68') }}</span>
+     </div>
+     <div class="row-69 flex gap-2">
+       <span>{{ t('row.69') }}</span>
+     </div>
+     <div class="row-70 flex gap-2">
+       <span>{{ t('row.70') }}</span>
+     </div>
+     <div class="row-71 flex gap-2">
+       <span>{{ t('row.71') }}</span>
+     </div>
+     <div class="row-72 flex gap-2">
+       <span>{{ t('row.72') }}</span>
+     </div>
+     <div class="row-73 flex gap-2">
+       <span>{{ t('row.73') }}</span>
+     </div>
+     <div class="row-74 flex gap-2">
+       <span>{{ t('row.74') }}</span>
+     </div>
+     <div class="row-75 flex gap-2">
+       <span>{{ t('row.75') }}</span>
+     </div>
+     <div class="row-76 flex gap-2">
+       <span>{{ t('row.76') }}</span>
+     </div>
+     <div class="row-77 flex gap-2">
+       <span>{{ t('row.77') }}</span>
+     </div>
+     <div class="row-78 flex gap-2">
+       <span>{{ t('row.78') }}</span>
+     </div>
+     <div class="row-79 flex gap-2">
+       <span>{{ t('row.79') }}</span>
+     </div>
+     <div class="row-80 flex gap-2">
+       <span>{{ t('row.80') }}</span>
+     </div>
+     <div class="row-81 flex gap-2">
+       <span>{{ t('row.81') }}</span>
+     </div>
+     <div class="row-82 flex gap-2">
+       <span>{{ t('row.82') }}</span>
+     </div>
+     <div class="row-83 flex gap-2">
+       <span>{{ t('row.83') }}</span>
+     </div>
+     <div class="row-84 flex gap-2">
+       <span>{{ t('row.84') }}</span>
+     </div>
+     <div class="row-85 flex gap-2">
+       <span>{{ t('row.85') }}</span>
+     </div>
+     <div class="row-86 flex gap-2">
+       <span>{{ t('row.86') }}</span>
+     </div>
+     <div class="row-87 flex gap-2">
+       <span>{{ t('row.87') }}</span>
+     </div>
+     <div class="row-88 flex gap-2">
+       <span>{{ t('row.88') }}</span>
+     </div>
+     <div class="row-89 flex gap-2">
+       <span>{{ t('row.89') }}</span>
+     </div>
+     <div class="row-90 flex gap-2">
+       <span>{{ t('row.90') }}</span>
+     </div>
+     <div class="row-91 flex gap-2">
+       <span>{{ t('row.91') }}</span>
+     </div>
+     <div class="row-92 flex gap-2">
+       <span>{{ t('row.92') }}</span>
+     </div>
+     <div class="row-93 flex gap-2">
+       <span>{{ t('row.93') }}</span>
+     </div>
+     <div class="row-94 flex gap-2">
+       <span>{{ t('row.94') }}</span>
+     </div>
+     <div class="row-95 flex gap-2">
+       <span>{{ t('row.95') }}</span>
+     </div>
+     <div class="row-96 flex gap-2">
+       <span>{{ t('row.96') }}</span>
+     </div>
+     <div class="row-97 flex gap-2">
+       <span>{{ t('row.97') }}</span>
+     </div>
+     <div class="row-98 flex gap-2">
+       <span>{{ t('row.98') }}</span>
+     </div>
+     <div class="row-99 flex gap-2">
+       <span>{{ t('row.99') }}</span>
+     </div>
+     <div class="row-100 flex gap-2">
+       <span>{{ t('row.100') }}</span>
++      <StatusText class="ml-2 text-red-500" size="small" text="Over budget" />
+     </div>
+     <div class="row-101 flex gap-2">
+       <span>{{ t('row.101') }}</span>
+     </div>
+     <div class="row-102 flex gap-2">
+       <span>{{ t('row.102') }}</span>
+     </div>
+     <div class="row-103 flex gap-2">
+       <span>{{ t('row.103') }}</span>
+     </div>
+     <div class="row-104 flex gap-2">
+       <span>{{ t('row.104') }}</span>
+     </div>
+     <div class="row-105 flex gap-2">
+       <span>{{ t('row.105') }}</span>
+     </div>
+     <div class="row-106 flex gap-2">
+       <span>{{ t('row.106') }}</span>
+     </div>
+     <div class="row-107 flex gap-2">
+       <span>{{ t('row.107') }}</span>
+     </div>
+     <div class="row-108 flex gap-2">
+       <span>{{ t('row.108') }}</span>
+     </div>
+     <div class="row-109 flex gap-2">
+       <span>{{ t('row.109') }}</span>
+     </div>
+     <div class="row-110 flex gap-2">
+       <span>{{ t('row.110') }}</span>
+     </div>
+   </div>
+ </template>
+ 
+ <script setup lang="ts">

@@ -24,6 +24,15 @@ export type RulesFile = {
 
 const DEFAULTS = {
   timeoutMs: 30_000,
+  /*
+   * Tuned on Jev (cloudflare:typesafe/jev) on 2026-10-07 with a 15-rule set for a Vue and TypeScript codebase, at
+   * 1000, 2000, 4000, 8000, 16000, 32000 and 64000. Data: 29 planted hits and 36 clean cases, 3 real feature branches,
+   * 7 repro cases for one template rule, and 20 plants at the start, middle and end of 34k and 49k character files. No size
+   * judged measurably better: the few findings that came and went between sizes moved a few hundredths around their
+   * cutoff, in both directions, which is the classifier's run-to-run noise. 4000 sends the median hunk (1-3k) whole and
+   * needs fewer requests than smaller windows, each of which repeats every matching rule's question. Jev rejects a
+   * request over about 101k characters.
+   */
   maxHunkChars: 4000,
 } satisfies Omit<RulesFile, "model" | "rules">;
 

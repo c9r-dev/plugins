@@ -41,8 +41,8 @@ git diff -W origin/main...HEAD | soft-lint rules.json
 It never calls git or reads the working tree, so the caller chooses what to judge. `-W` (the whole enclosing function
 as context) is the recommended diff. Paths must carry git's default `b/` prefix, so do not pass `--no-prefix`.
 
-Output is one line per finding: path, rule id, score, cutoff and question. The line number is the hunk's first added
-line, not the offending line, and several rules can fire on one hunk:
+Output is one line per finding: path, rule id, score, cutoff and question. The line number is the first added line of
+the hunk (or of its window, below), not the offending line, and several rules can fire on one hunk:
 
 ```text
 src/cart.ts:1:1: [hidden-write] 0.97 >= 0.80: Do the added lines make a function whose name promises ...
@@ -70,6 +70,36 @@ The last stderr line counts files, requests (with the model asked), gateway hits
 provider reports. Token totals cover the requests the gateway did not answer from its cache; tokens reported on gateway
 hits are totalled apart, because whether Cloudflare bills a hit is unverified.
 
+### JSON output
+
+`--json` prints one JSON object on stdout in place of the finding lines and the stderr summary, with the same exit
+codes, for a tool to read:
+
+```bash
+git diff -W origin/main...HEAD | soft-lint --json rules.json
+```
+
+```json
+{
+  "durationMs": 1840,
+  "model": "cloudflare:typesafe/jev",
+  "files": 2,
+  "hunks": 3,
+  "requests": 2,
+  "gatewayHits": 1,
+  "findings": [
+    { "path": "src/cart.ts", "line": 1, "rule": "hidden-write", "score": 0.97, "cutoff": 0.8, "question": "..." }
+  ],
+  "unchecked": [],
+  "reasons": []
+}
+```
+
+`hunks` counts every hunk in the diff, `requests` the windows of the ones a rule matched: one per hunk, more for a
+hunk longer than `maxHunkChars`. `unchecked` lists the files with a hunk it
+could not check, and `reasons` each distinct reason why. When soft-lint cannot run at all, the object is only
+`{ "durationMs", "error" }`.
+
 ### The whole repo
 
 To ask every rule about every file, diff against the empty tree:
@@ -78,8 +108,8 @@ To ask every rule about every file, diff against the empty tree:
 git diff -W $(git hash-object -t tree /dev/null) HEAD | soft-lint rules.json
 ```
 
-Each file is then one hunk, so one request per file, and a file longer than `maxHunkChars` is truncated: the question
-sees only its start. Use it to measure a rule against a codebase, not as a routine check.
+Each file is then one hunk, so one request per file, and a file longer than `maxHunkChars` is split into windows, one
+request each. Use it to measure a rule against a codebase, not as a routine check.
 
 ## Rules
 
@@ -109,7 +139,7 @@ A rules file holds the questions:
   model, so moving to another model family (Jev to Clef) means re-tuning them; moving the same model to another
   provider (Jev on TypeSafe to Jev on Cloudflare) does not.
 - `model`, `timeoutMs` and `maxHunkChars` are optional, with the defaults above, except that a missing `model`
-  falls to the default described below. A hunk longer than `maxHunkChars` is truncated.
+  falls to the default described below. `maxHunkChars` caps the text of one request; see below.
 - The file is checked on load. An unknown key, a cutoff outside 0 to 1, a rule without globs or a repeated id stops the
   run.
 
@@ -120,6 +150,21 @@ Each hunk with at least one matching rule is one request asking every rule whose
 id in id order. The request depends only on the hunk and the rules, so everyone sends the same request for the same
 change. Adding a rule adds tokens, not requests: with Jev, a hunk asked four rules is about 800 input tokens. At most
 8 requests run at once. soft-lint writes no files.
+
+A hunk longer than `maxHunkChars` is split into windows, each at most `maxHunkChars` and each its own request, with
+its own finding line and cache key. `-W` makes this common: a new file is one hunk, and a Vue template has no line
+git counts as a function, so an edit in a template-first component widens to the whole template. Every added line lands in exactly one window, beside the added lines after it that
+fit, and the rest of the window is filled with the context nearest them. A window keeps the hunk's `@@` header and
+marks the lines it leaves out on either side with a line such as `… 120 lines omitted …`. The one cut soft-lint makes
+is to an added line that cannot fit in a window by itself: it goes alone, cut at the limit and ended with `…truncated`.
+
+`maxHunkChars` is tuned per model, like the cutoffs, and set in the rules file next to `model`. The default, 4000, is
+measured on Jev from 1000 to 64000 characters, and no size judged measurably better: the few findings that came and
+went between sizes moved a few hundredths around their cutoff, in both directions. 4000 sends a typical hunk whole and
+needs fewer requests than smaller windows, which matters because every request repeats each matching rule's question
+(about 2.1 times the input tokens at 1000). Jev rejects any request over about 101k characters (about 33k tokens). Clef needs a
+much smaller value: its score for a planted hit falls from 0.71 at 4000 characters to 0.20 at 16000, so a rules file for
+Clef should set `maxHunkChars` well under 8000, and measure it.
 
 ## Models and credentials
 
@@ -183,6 +228,13 @@ The hook runs in the background (`"async": true`), so it never delays an edit. I
 context on its next model request, marked advisory: a classifier's opinion, to act on where the agent agrees. No
 findings means no message. When soft-lint cannot run, the hook writes one line to stderr, which lands in Claude Code's
 debug log, and the edit is unaffected.
+
+Each run the hook makes appends one JSON line to `runs.jsonl` in the plugin's data directory, `$CLAUDE_PLUGIN_DATA`
+(`~/.claude/plugins/data/soft-lint-c9r/` when installed from c9r), which survives plugin updates. The log is for
+reviewing how the rules behave in real use. A line holds `time`, `repo`, `file` (repo-relative), `model`, `exit`,
+`durationMs`, `hunks`, `requests`, `gatewayHits`, `findings` (each `{ rule, line, score }`) and, on exit 2, `error`.
+Edits the hook skips (outside git, no `.soft-lint.json`, no change) are not logged, and a log it cannot write never
+changes what the agent is told.
 
 ## Why a diff
 
