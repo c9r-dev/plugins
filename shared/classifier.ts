@@ -268,10 +268,41 @@ export function replyFrom<Qs extends Questions>(text: string, questions: Qs): Om
   return { answers: returned, usage: usageOf(run) };
 }
 
+/** HTTP statuses that a moment's wait may clear: rate limiting, and a gateway or upstream briefly unavailable. */
+const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+
+const MAX_ATTEMPTS = 5;
+
+const FIRST_BACKOFF_MS = 1000;
+
+const attempts = (count: number): string => (count === 1 ? "1 attempt" : `${count} attempts`);
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * Asks `model`, as `resolveModel` gave it, every question in `classification` in one request. Throws, with a message
- * fit to show a user, when the request fails or times out (an HTTP error carries the provider's own message, such as
- * a model it does not serve), or when any answer is missing or invalid.
+ * How long to wait before attempt `attempt + 1`: the response's `Retry-After` when it has a usable one (seconds, or an
+ * HTTP date), else an exponential backoff from one second, jittered between half and all of it so concurrent callers
+ * spread out.
+ */
+function retryDelayMs(response: Response, attempt: number): number {
+  const retryAfter = response.headers.get("retry-after")?.trim();
+  if (retryAfter !== undefined && /^\d+$/u.test(retryAfter)) {
+    return Number(retryAfter) * 1000;
+  }
+  const date = retryAfter === undefined ? Number.NaN : Date.parse(retryAfter);
+  if (!Number.isNaN(date)) {
+    return Math.max(0, date - Date.now());
+  }
+  const backoff = FIRST_BACKOFF_MS * 2 ** (attempt - 1);
+  return backoff * (0.5 + Math.random() / 2);
+}
+
+/**
+ * Asks `model`, as `resolveModel` gave it, every question in `classification` in one request. A rate limit (HTTP 429)
+ * or an unavailable gateway (502, 503, 504) is retried, up to five attempts in all, while the wait fits the one
+ * `timeoutMs` budget all attempts share. Throws, with a message fit to show a user, when the request fails or the
+ * budget runs out (an HTTP error carries the provider's own message, such as a model it does not serve), or when any
+ * answer is missing or invalid.
  */
 export async function classify<Qs extends Questions>(
   env: Env,
@@ -281,27 +312,34 @@ export async function classify<Qs extends Questions>(
 ): Promise<Classified<Qs>> {
   const request = await requestFor(env, model, classification);
   const { timeoutMs } = options;
-  let response: Response;
-  let text: string;
-  try {
-    response = await fetch(request.url, {
-      method: "POST",
-      headers: request.headers,
-      body: request.body,
-      signal: timeoutMs === undefined ? null : AbortSignal.timeout(timeoutMs),
-    });
-    text = await response.text();
-  } catch (error) {
-    /* The timeout signal aborts the body read as well as the connection, so both surface here. */
-    throw error instanceof Error && error.name === "TimeoutError"
-      ? new Error(`${model.name} did not answer within ${timeoutMs}ms`)
-      : error;
+  const deadline = timeoutMs === undefined ? Number.POSITIVE_INFINITY : Date.now() + timeoutMs;
+  const signal = timeoutMs === undefined ? null : AbortSignal.timeout(timeoutMs);
+  for (let attempt = 1; ; attempt++) {
+    let response: Response;
+    let text: string;
+    try {
+      response = await fetch(request.url, { method: "POST", headers: request.headers, body: request.body, signal });
+      text = await response.text();
+    } catch (error) {
+      /* The timeout signal aborts the body read as well as the connection, so both surface here. */
+      throw error instanceof Error && error.name === "TimeoutError"
+        ? new Error(`${model.name} did not answer within ${timeoutMs}ms (${attempts(attempt)})`)
+        : error;
+    }
+    if (response.ok) {
+      return {
+        ...replyFrom(text, classification.questions),
+        gatewayHit: response.headers.get("cf-aig-cache-status") === "HIT",
+      };
+    }
+    const failure = `${model.name} request failed after ${attempts(attempt)}: HTTP ${response.status}: ${text.slice(0, 300)}`;
+    if (!RETRYABLE_STATUSES.has(response.status) || attempt === MAX_ATTEMPTS) {
+      throw new Error(failure);
+    }
+    const delay = retryDelayMs(response, attempt);
+    if (Date.now() + delay >= deadline) {
+      throw new Error(failure);
+    }
+    await sleep(delay);
   }
-  if (!response.ok) {
-    throw new Error(`${model.name} request failed: HTTP ${response.status}: ${text.slice(0, 300)}`);
-  }
-  return {
-    ...replyFrom(text, classification.questions),
-    gatewayHit: response.headers.get("cf-aig-cache-status") === "HIT",
-  };
 }

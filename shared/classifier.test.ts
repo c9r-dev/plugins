@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { afterEach, describe, test } from "node:test";
+import { afterEach, describe, mock, test } from "node:test";
 
 import {
   classify,
@@ -300,5 +300,112 @@ describe("classify", () => {
         init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
       });
     await assert.rejects(classify(typesafe, jevOnTypesafe, { state, questions: isIt }, { timeoutMs: 20 }), /did not answer within 20ms/u);
+  });
+
+  /**
+   * Runs `promise` to completion with setTimeout and Date mocked: each time the code under test is left waiting on a
+   * timer, the mock clock jumps straight to it. Returns the outcome so a rejection can be asserted on.
+   */
+  async function onMockClock<T>(promise: Promise<T>): Promise<PromiseSettledResult<T>> {
+    let outcome: PromiseSettledResult<T> | undefined;
+    const settled = promise.then(
+      (value) => (outcome = { status: "fulfilled", value }),
+      (reason: unknown) => (outcome = { status: "rejected", reason }),
+    );
+    while (outcome === undefined) {
+      await new Promise((resolve) => setImmediate(resolve));
+      mock.timers.runAll();
+    }
+    await settled;
+    return outcome;
+  }
+
+  /** Makes fetch answer each request with the next of `responses`, recording the mock clock's time at each. */
+  const respondInTurn = (responses: (() => Response)[]): number[] => {
+    const times: number[] = [];
+    globalThis.fetch = async () => {
+      times.push(Date.now());
+      const next = responses[times.length - 1];
+      assert.ok(next, `unexpected request ${times.length}`);
+      return next();
+    };
+    return times;
+  };
+
+  const rateLimited = (headers: Record<string, string> = {}) => () =>
+    new Response("rate limited", { status: 429, headers });
+  const answered = () => new Response(body({ r: { type: "noul", noul: 0.5 } }), { status: 200 });
+
+  describe("retries", () => {
+    afterEach(() => {
+      mock.timers.reset();
+    });
+
+    test("retries a rate-limited request and returns the answer that follows", async () => {
+      mock.timers.enable({ apis: ["setTimeout", "Date"] });
+      const times = respondInTurn([rateLimited(), rateLimited(), answered]);
+      const outcome = await onMockClock(classify(typesafe, jevOnTypesafe, { state, questions: isIt }, { timeoutMs: 30_000 }));
+      assert.deepStrictEqual(
+        { status: outcome.status, requests: times.length },
+        { status: "fulfilled", requests: 3 },
+      );
+    });
+
+    for (const status of [502, 503, 504]) {
+      test(`retries an HTTP ${status} from the gateway`, async () => {
+        mock.timers.enable({ apis: ["setTimeout", "Date"] });
+        const times = respondInTurn([() => new Response("unavailable", { status }), answered]);
+        await onMockClock(classify(typesafe, jevOnTypesafe, { state, questions: isIt }, { timeoutMs: 30_000 }));
+        assert.equal(times.length, 2);
+      });
+    }
+
+    test("waits the seconds Retry-After gives before retrying", async () => {
+      mock.timers.enable({ apis: ["setTimeout", "Date"] });
+      const times = respondInTurn([rateLimited({ "Retry-After": "7" }), answered]);
+      await onMockClock(classify(typesafe, jevOnTypesafe, { state, questions: isIt }, { timeoutMs: 30_000 }));
+      assert.equal(times[1]! - times[0]!, 7000);
+    });
+
+    test("waits until the HTTP date Retry-After gives before retrying", async () => {
+      mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.parse("2026-01-01T00:00:00Z") });
+      const times = respondInTurn([rateLimited({ "Retry-After": "Thu, 01 Jan 2026 00:00:05 GMT" }), answered]);
+      await onMockClock(classify(typesafe, jevOnTypesafe, { state, questions: isIt }, { timeoutMs: 30_000 }));
+      assert.equal(times[1]! - times[0]!, 5000);
+    });
+
+    test("gives up once the next wait would pass the deadline, naming the attempts", async () => {
+      mock.timers.enable({ apis: ["setTimeout", "Date"] });
+      respondInTurn([rateLimited({ "Retry-After": "4" }), rateLimited({ "Retry-After": "4" }), rateLimited({ "Retry-After": "4" })]);
+      const outcome = await onMockClock(classify(typesafe, jevOnTypesafe, { state, questions: isIt }, { timeoutMs: 10_000 }));
+      assert.match(
+        String(outcome.status === "rejected" && outcome.reason),
+        /request failed after 3 attempts: HTTP 429: rate limited/u,
+      );
+    });
+
+    test("gives up after five attempts even with no deadline", async () => {
+      mock.timers.enable({ apis: ["setTimeout", "Date"] });
+      const times = respondInTurn(Array.from({ length: 5 }, () => rateLimited()));
+      const outcome = await onMockClock(classify(typesafe, jevOnTypesafe, { state, questions: isIt }));
+      assert.deepStrictEqual(
+        { status: outcome.status, requests: times.length },
+        { status: "rejected", requests: 5 },
+      );
+    });
+
+    test("does not retry a 400", async () => {
+      mock.timers.enable({ apis: ["setTimeout", "Date"] });
+      const times = respondInTurn([() => new Response("bad request", { status: 400 })]);
+      await onMockClock(classify(typesafe, jevOnTypesafe, { state, questions: isIt }, { timeoutMs: 30_000 }));
+      assert.equal(times.length, 1);
+    });
+
+    test("does not retry an invalid answer", async () => {
+      mock.timers.enable({ apis: ["setTimeout", "Date"] });
+      const times = respondInTurn([() => new Response(body({}), { status: 200 })]);
+      await onMockClock(classify(typesafe, jevOnTypesafe, { state, questions: isIt }, { timeoutMs: 30_000 }));
+      assert.equal(times.length, 1);
+    });
   });
 });
