@@ -11,5 +11,5 @@
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["*.ts", "tests/*.ts"]
+  "include": ["*.ts", "tests/*.ts", "evals/*.ts"]
 }

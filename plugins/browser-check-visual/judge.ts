@@ -7,15 +7,18 @@
  * are the provider's own variables, such as CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.
  */
 import { classify, resolveModel } from "./classifier.ts";
-import type { Questions } from "./classifier.ts";
+import type { Classification, Questions } from "./classifier.ts";
 
 const DEFAULT_MODEL = "cloudflare:@cf/cloudflare/clef";
 
 /*
- * Measured on 32 labelled visual claims with Clef and the screenshot alone: 96.9% agreement at 0.5, and every false
- * claim scored 0.12 or less, so 0.5 passes true claims without passing false ones.
+ * No threshold separates Clef's scores cleanly. On 77 labelled claims (evals/cases.json's 45, plus 32 private app
+ * screenshots kept outside the repo) it agrees with the label on 92.2% at 0.5, and no threshold beats 93.5%: true
+ * claims score 0.68 or more bar one, but a claim that something does not go wrong in an element the page does not
+ * show ("no text in the navigation overlaps" with no navigation) scores up to 0.92. A claim that states the element is
+ * shown ("the page shows a navigation, and no text in it overlaps") scores 0.14 or less on those pages.
  */
-const PASS_AT = 0.5;
+export const PASS_AT = 0.5;
 
 /* The runner's own verify question, word for word, so the judge answers what browser-check asks of every check. */
 const QUESTIONS = {
@@ -29,9 +32,21 @@ const QUESTIONS = {
   },
 } satisfies Questions;
 
-type JudgeInput = { claim: string; claimNumber: number; checklist: string[]; screenshot: Uint8Array };
+export type JudgeInput = { claim: string; claimNumber: number; checklist: string[]; screenshot: Uint8Array };
 
-export default async function judge({ claim, claimNumber, checklist, screenshot }: JudgeInput): Promise<{
+/** The request the judge sends for one claim, shared with the evals so they measure exactly this. */
+export const classificationFor = ({
+  claim,
+  claimNumber,
+  checklist,
+  screenshot,
+}: JudgeInput): Classification<typeof QUESTIONS> => ({
+  state: { claim, claim_number: claimNumber, checklist },
+  images: [`data:image/png;base64,${Buffer.from(screenshot).toString("base64")}`],
+  questions: QUESTIONS,
+});
+
+export default async function judge(input: JudgeInput): Promise<{
   status: "passed" | "for-caller";
   detail: string;
 }> {
@@ -44,11 +59,7 @@ export default async function judge({ claim, claimNumber, checklist, screenshot 
     process.env.BROWSER_CHECK_VISUAL_MODEL || DEFAULT_MODEL,
     "BROWSER_CHECK_VISUAL_MODEL",
   );
-  const { answers } = await classify(process.env, model, {
-    state: { claim, claim_number: claimNumber, checklist },
-    images: [`data:image/png;base64,${Buffer.from(screenshot).toString("base64")}`],
-    questions: QUESTIONS,
-  });
+  const { answers } = await classify(process.env, model, classificationFor(input));
   const score = answers.holds.noul;
   const detail = `${model.name} score ${score.toFixed(2)}`;
   return score >= PASS_AT ? { status: "passed", detail } : { status: "for-caller", detail };

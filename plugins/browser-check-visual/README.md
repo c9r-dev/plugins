@@ -5,9 +5,11 @@ tree, never pixels, so it hands every check about looks (layout, overlap, clippi
 calling agent with a screenshot. With this plugin installed, a vision classifier looks at that screenshot first:
 it passes the steps it is confident hold, and hands the rest back with its score. It can never fail a step.
 
-On 32 visual claims labelled by hand, Clef with the screenshot alone agreed with the label on 96.9% at the 0.5
-threshold, and never passed a false claim: every false claim scored 0.12 or less. browser-check's text model,
-judging the same claims from the accessibility tree, agreed on 42%.
+On 77 visual claims labelled by hand, Clef with the screenshot alone agreed with the label on 92.2% at the 0.5
+threshold. Its false passes are claims that nothing goes wrong in an element the page does not show, such as "no
+text in the navigation overlaps" on a page with no navigation: write a visual claim so it states what must be shown
+("the page shows a navigation, and no text in it overlaps"). On 32 of those claims, browser-check's text model,
+judging from the accessibility tree, agreed on 42%. [evals/](evals/README.md) holds the public part of the set.
 
 ## Install
 
