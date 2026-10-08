@@ -2,15 +2,16 @@ import { writeFileSync } from "node:fs";
 
 import type { Locator, Page, TestInfo } from "@playwright/test";
 
-import type { Choice, Finalist } from "./choice";
-import { choiceAmong, finalistsOf, offeredRefs, questionsFor } from "./choice";
+import type { Finalist } from "./choice";
+import { choiceAmong } from "./choice";
+import { chooserFor, fittingForm } from "./choosing";
 import { evidenceFiles, keepsEvidence } from "./evidence";
-import type { ChoiceQuestion, EntryType } from "./classifier";
+import type { ChoiceQuestion, EntryType, Questions } from "./classifier";
 import { askClassifier, classifierModel, classifierUsage } from "./ask";
 import type { Thresholds } from "./thresholds";
 import { thresholdsFor } from "./thresholds";
-import type { Node } from "./tree";
-import { isUnnamed, nodesOf, withRefsOnly } from "./tree";
+import type { Node, ParsedTree } from "./tree";
+import { TYPEABLE_ROLES, isActionable, isTypeable, isUnnamed, nodesOf, parseTree, treeForJev } from "./tree";
 import { pointerTargetOf } from "./pointer";
 import { judgeVisually } from "./visual";
 
@@ -81,6 +82,8 @@ type StepContext = {
    * refused action's candidates, and for a step of several actions the tree its final choice was made from.
    */
   tree?: string;
+  /** How the step's requests carry the page tree: see `pageAskerFor`. */
+  askAboutPage: AskAboutPage;
 };
 
 /*
@@ -92,17 +95,29 @@ type StepContext = {
  * Every element choice carries the page tree: offered bare labels, Jev put "none" at 0.47 against the Link field at
  * 0.40 for "the URL shown in the Link field", and 0.97 on the field once the tree was in view.
  */
-const stateFor = (
-  page: Page,
-  { step, actionsTaken }: StepContext,
-  tree: string,
-  choices: Choice[],
-) => ({
+const stateFor = (page: Page, { step, actionsTaken }: StepContext, tree: string) => ({
   step,
   actions_already_taken_for_this_step: actionsTaken,
   current_url: page.url(),
-  page: { tree: withRefsOnly(tree, offeredRefs(choices)) },
+  page: { tree },
 });
+
+/**
+ * How one step asks about the page: `questions`, in the state `stateOf` builds around the tree as sent to Jev, with
+ * refs on the `offered` elements only. The tree goes faithful, and compact for the rest of the step once a request
+ * is past Jev's input limit.
+ */
+const pageAskerFor = () => {
+  const inFittingForm = fittingForm();
+  return <Qs extends Questions>(
+    tree: ParsedTree,
+    offered: ReadonlySet<string>,
+    stateOf: (rendered: string) => object,
+    questions: Qs,
+  ) => inFittingForm((compact) => askClassifier(stateOf(treeForJev(tree, { offered, compact })), questions));
+};
+
+type AskAboutPage = ReturnType<typeof pageAskerFor>;
 
 const numbered = (checklist: string[]) =>
   checklist.map((text, index) => `${index + 1}. ${text}`);
@@ -118,6 +133,8 @@ const KINDS = {
     "Anything the page cannot do by clicking, typing or opening a URL — keyboard shortcuts, external tools, a URL built from pieces the step describes",
 };
 
+const isStepKind = (value: string | undefined): value is StepKind => value !== undefined && Object.hasOwn(KINDS, value);
+
 /** Strip a leading `N.` or `N)` and drop blank lines. */
 const parseSteps = (lines: string[]) =>
   lines
@@ -130,37 +147,6 @@ const SETTLE_TIMEOUT_MS = 8000;
 /** Visible loading indicators: ARIA progress bars that say they are busy, and data grids showing skeleton rows. */
 const LOADING_SELECTOR =
   '[role="progressbar"][aria-busy="true"]:visible, [data-is-loading="true"]:visible';
-
-const TYPEABLE_ROLES = new Set(["textbox", "searchbox", "combobox"]);
-
-/*
- * Roles a user acts on. Candidates are limited to these (plus anything styled clickable) because the tree also
- * holds every paragraph, cell and wrapper: offered all of them in document order, the candidate cap was spent before
- * a drawer's tabs or a footer's buttons were reached.
- */
-const ACTIONABLE_ROLES = new Set([
-  ...TYPEABLE_ROLES,
-  "button",
-  "checkbox",
-  "link",
-  "menuitem",
-  "menuitemcheckbox",
-  "menuitemradio",
-  "option",
-  "radio",
-  "row",
-  "slider",
-  "spinbutton",
-  "switch",
-  "tab",
-  "treeitem",
-]);
-
-const isActionable = (node: Node) =>
-  !node.disabled && (ACTIONABLE_ROLES.has(node.role) || node.pointer);
-
-const isTypeable = (node: Node) =>
-  !node.disabled && TYPEABLE_ROLES.has(node.role);
 
 /**
  * Where a URL can be read from: a link's href, a field's value, or a node whose text shows one. Reading needs no
@@ -251,38 +237,15 @@ const targetOf = (page: Page, { ref, label, confidence }: Finalist): Target => (
   confidence,
 });
 
-type Answers = Partial<Record<string, { choice: string; confidence: number }>>;
+/** How a step chooses elements on `tree`, each request carrying the step's state with that tree. */
+const chooserOn = (page: Page, context: StepContext, tree: ParsedTree) =>
+  chooserFor(
+    async (offered, questions) =>
+      (await context.askAboutPage(tree, offered, (rendered) => stateFor(page, context, rendered), questions)).answers,
+    tree,
+  );
 
-/*
- * The element `choice` settles on from its slices' answers. When more than one slice names an element, those
- * finalists are put to the classifier again as a choice of their own, since each was scored only against its own
- * slice.
- */
-const decide = async (
-  page: Page,
-  context: StepContext,
-  tree: string,
-  choice: Choice,
-  answers: Answers,
-): Promise<Target | null> => {
-  const finalists = finalistsOf(choice, answers);
-  if (finalists.length > 1) {
-    const runOff = choiceAmong(choice.name, choice.instructions, finalists);
-    const again = await askClassifier(stateFor(page, context, tree, [runOff]), questionsFor(runOff));
-    return decide(page, context, tree, runOff, again.answers);
-  }
-  const [finalist] = finalists;
-  return finalist === undefined ? null : targetOf(page, finalist);
-};
-
-/** Ask `choice` on its own and settle it. A choice with no candidates has no question to ask, and no element. */
-const choose = async (page: Page, context: StepContext, tree: string, choice: Choice) => {
-  if (choice.slices.length === 0) {
-    return null;
-  }
-  const { answers } = await askClassifier(stateFor(page, context, tree, [choice]), questionsFor(choice));
-  return decide(page, context, tree, choice, answers);
-};
+const targetFrom = (page: Page, pick: Finalist | undefined) => (pick === undefined ? null : targetOf(page, pick));
 
 /*
  * Refuse a target before acting on it, so a wrong click never leaves later steps on the wrong page. A confident
@@ -364,7 +327,7 @@ const urlHeldBy = async (target: Target) => {
 const performGoto = async (
   page: Page,
   context: StepContext,
-  tree: string,
+  tree: ParsedTree,
 ): Promise<Outcome> => {
   const written = /(?<url>https?:\/\/\S+|\/\S+)/.exec(context.step)?.groups?.url;
   if (written !== undefined) {
@@ -372,12 +335,12 @@ const performGoto = async (
     await settle(page, context);
     return { status: "passed", detail: `opened ${written}` };
   }
-  const holder = await choose(
-    page,
-    context,
-    tree,
-    choiceAmong("holder", "Which element holds the URL the step says to open?", nodesOf(tree).filter(mayHoldUrl)),
+  const holders = choiceAmong(
+    "holder",
+    "Which element holds the URL the step says to open?",
+    nodesOf(tree).filter(mayHoldUrl),
   );
+  const holder = targetFrom(page, await chooserOn(page, context, tree).decide(holders));
   if (!holder) {
     throw new Error("no element on the page holds the URL the step names");
   }
@@ -395,26 +358,25 @@ const performGoto = async (
   };
 };
 
-/** What a verify judges: the tree (dialog first when open, by construction) plus the page's visible text. */
-const snapshotPage = async (page: Page, tree: string) => {
+/** What a verify judges beside the tree (dialog first when open, by construction): the page's visible text. */
+const snapshotPage = async (page: Page) => {
   const text = await page.locator("body").innerText();
   return {
     url: page.url(),
     title: await page.title(),
     dialog_open: await page.locator('[role="dialog"]').last().isVisible(),
-    /* A verify chooses no element, so no ref means anything to it. */
-    tree: withRefsOnly(tree, new Set()),
     text: text.replace(/\s+/g, " ").trim().slice(0, 6000),
   };
 };
 
 /*
  * The kind, a click target and a typing target are independent questions over the same page, so one classifier call
- * answers all three; the answers not matching the kind are simply unused. A verify is asked on its own: folded into
- * this call its verdicts drift towards the middle, and a check deserves the model's whole attention. A target is
- * settled only for the kind the step turns out to be, since settling one can take a further call.
+ * answers all three, with the first slice of each target; the answers not matching the kind are simply unused. A
+ * verify is asked on its own: folded into this call its verdicts drift towards the middle, and a check deserves the
+ * model's whole attention. A target is settled only for the kind the step turns out to be, since settling one can
+ * take a further call.
  */
-const classifyStep = async (page: Page, context: StepContext, tree: string) => {
+const classifyStep = async (page: Page, context: StepContext, tree: ParsedTree) => {
   const nodes = nodesOf(tree);
   const click = choiceAmong(
     "click",
@@ -426,45 +388,54 @@ const classifyStep = async (page: Page, context: StepContext, tree: string) => {
     "If the step is carried out by typing, which field or editor should the text be typed into?",
     nodes.filter(isTypeable),
   );
-  const { answers } = await askClassifier(stateFor(page, context, tree, [click, type]), {
+  const chooser = chooserOn(page, context, tree);
+  const firstSlices = [click.slices[0], type.slices[0]].filter((slice) => slice !== undefined);
+  const first = await chooser.askSlices(firstSlices, {
     kind: {
       type: "choice" as const,
       instructions: "What kind of QA step is this?",
       criteria: KINDS,
     },
-    ...questionsFor(click),
-    ...questionsFor(type),
   });
+  const kind = first.answers.kind?.choice;
+  if (!isStepKind(kind)) {
+    throw new Error(`the classifier answered the step's kind with ${String(kind)}`);
+  }
   return {
-    kind: answers.kind.choice,
-    click: () => decide(page, context, tree, click, answers),
-    type: () => decide(page, context, tree, type, answers),
+    kind,
+    click: async () => targetFrom(page, await chooser.decide(click, first)),
+    type: async () => targetFrom(page, await chooser.decide(type, first)),
   };
+};
+
+const VERIFY = {
+  holds: {
+    type: "noul" as const,
+    instructions: "Does the current page satisfy this QA claim? Judge only what the snapshot shows.",
+    criteria: {
+      true: "Every part of the claim is supported by the snapshot, or describes a transient state (loading, a brief spinner) that has resolved into what the snapshot shows",
+      false: "Some part of the claim is contradicted or not shown",
+    },
+  },
 };
 
 const performVerify = async (
   page: Page,
   context: StepContext,
-  tree: string,
+  tree: ParsedTree,
 ): Promise<Outcome> => {
-  const { answers } = await askClassifier(
-    {
+  const shown = await snapshotPage(page);
+  /* A verify chooses no element, so no ref means anything to it. */
+  const { answers } = await context.askAboutPage(
+    tree,
+    new Set(),
+    (rendered) => ({
       claim: context.step,
       claim_number: context.number,
       checklist: numbered(context.checklist),
-      page: await snapshotPage(page, tree),
-    },
-    {
-      holds: {
-        type: "noul",
-        instructions:
-          "Does the current page satisfy this QA claim? Judge only what the snapshot shows.",
-        criteria: {
-          true: "Every part of the claim is supported by the snapshot, or describes a transient state (loading, a brief spinner) that has resolved into what the snapshot shows",
-          false: "Some part of the claim is contradicted or not shown",
-        },
-      },
-    },
+      page: { ...shown, tree: rendered },
+    }),
+    VERIFY,
   );
   const probability = answers.holds.noul;
   return {
@@ -556,8 +527,9 @@ const followUpActions = async (page: Page, context: StepContext) => {
     const payload = context.payloads.shift();
     /* An already-filled field is not a candidate, so a second value cannot land in the first field. */
     // oxlint-disable-next-line no-await-in-loop -- each action depends on the page the previous one left
-    const tree = await snapshotTree(page);
-    context.tree = tree;
+    const snapshot = await snapshotTree(page);
+    context.tree = snapshot;
+    const tree = parseTree(snapshot);
     const nodes = nodesOf(tree).filter(
       (node) =>
         (payload === undefined && isActionable(node)) ||
@@ -570,8 +542,9 @@ const followUpActions = async (page: Page, context: StepContext) => {
       payload === undefined
         ? "Which element does the step say to act on next?"
         : "Which field should this step's next quoted value be typed into?";
+    const choice = choiceAmong("target", instructions, nodes);
     // oxlint-disable-next-line no-await-in-loop
-    const target = await choose(page, context, tree, choiceAmong("target", instructions, nodes));
+    const target = targetFrom(page, await chooserOn(page, context, tree).decide(choice));
     if (!target) {
       break;
     }
@@ -592,7 +565,7 @@ const performClassified = async (
   page: Page,
   context: StepContext,
   classified: Awaited<ReturnType<typeof classifyStep>>,
-  tree: string,
+  tree: ParsedTree,
 ): Promise<Outcome> => {
   switch (classified.kind) {
     case "click": {
@@ -645,8 +618,9 @@ const runStep = async (
   let kind: StepKind = "other";
   try {
     await settle(page, context);
-    const tree = await snapshotTree(page);
-    context.tree = tree;
+    const snapshot = await snapshotTree(page);
+    context.tree = snapshot;
+    const tree = parseTree(snapshot);
     const classified = await classifyStep(page, context, tree);
     kind = classified.kind;
     const outcome = await performClassified(page, context, classified, tree);
@@ -735,6 +709,7 @@ export const runQaSteps = async (
       /* A quoted value needs a field of its own, so the step's own values are a floor under the counted budget. */
       actionBudget: Math.max(plans[index]?.actions ?? 1, quotedTexts(step).length),
       settleMs: 0,
+      askAboutPage: pageAskerFor(),
       flag: plans[index]?.flag ?? "ok",
       thresholds,
     };
