@@ -15,8 +15,8 @@ const JEV: Thresholds = { action: 0.7, verify: 0.7 };
 
 /*
  * Clef and Clef Flash stay refused (measured with evals/ at the plugin root: 43 verifies, 34 actions). Both reject a
- * choice question with one label (HTTP 422), which the runner sends whenever a page has no candidate of a kind, so
- * half the actions never get an answer; and on the rest Clef rates right targets 0.53-0.70 and a wrong one 0.94.
+ * choice question with one label (HTTP 422), and half the eval's recorded actions carry one for a kind the page had no
+ * candidate of, so they never get an answer; on the rest Clef rates right targets 0.53-0.70 and a wrong one 0.94.
  */
 
 /** Thresholds by provider-qualified model, for the models they were measured on. */

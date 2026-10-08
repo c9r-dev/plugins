@@ -138,3 +138,11 @@ export const nodesOf = (tree: string): Node[] => {
 
 /** A node with no accessible name prints as its bare role, or with an empty name: `generic`, `textbox ""`. */
 export const isUnnamed = (description: string) => /^[a-z]+(\s+"")?$/.test(description);
+
+/*
+ * The tree as sent to Jev, with a ref left only on the nodes a question offers. A ref is how an answer names an
+ * element, so one on any other node can never be an answer, and refs are the bulk of a large tree's tokens: on a
+ * 108 KB tree of 1,524 refs, Jev counted 28.7k input tokens with every ref and 17.5k with none.
+ */
+export const withRefsOnly = (tree: string, offered: ReadonlySet<string>) =>
+  tree.replace(/ \[ref=(?<ref>[a-z0-9]+)\]/g, (annotation, ref: string) => (offered.has(ref) ? annotation : ""));
