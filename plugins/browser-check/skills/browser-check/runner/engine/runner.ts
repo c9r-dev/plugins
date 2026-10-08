@@ -11,6 +11,7 @@ import type { Thresholds } from "./thresholds";
 import { thresholdsFor } from "./thresholds";
 import type { Node } from "./tree";
 import { isUnnamed, nodesOf, withRefsOnly } from "./tree";
+import { pointerTargetOf } from "./pointer";
 import { judgeVisually } from "./visual";
 
 export type StepKind = "click" | "type" | "goto" | "verify" | "other";
@@ -313,7 +314,8 @@ const actionOutcome = ({ description, confidence }: Target): Outcome => ({
  */
 const clickTarget = async (target: Target) => {
   try {
-    await target.locator.click({ timeout: 10_000 });
+    const element = await target.locator.evaluateHandle(pointerTargetOf, undefined, { timeout: 10_000 });
+    await element.click({ timeout: 10_000 });
   } catch (error) {
     throw new Error(
       `click on ${target.description} failed: ${String(error).split("\n")[0]}`,
