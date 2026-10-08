@@ -1,0 +1,543 @@
+[
+  {
+    "id": "c01",
+    "image": "images/blank.png",
+    "claim": "Confirm no text in the navigation overlaps or is clipped",
+    "claim_number": 3,
+    "checklist": [
+      "Confirm the page shows a main navigation with at least one link",
+      "Select the first link in the main navigation",
+      "Confirm no text in the navigation overlaps or is clipped"
+    ],
+    "label": false,
+    "reason": "blank page: there is no navigation, so the claim's subject is not shown"
+  },
+  {
+    "id": "c02",
+    "image": "images/blank.png",
+    "claim": "Confirm the page heading is not clipped",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the page heading is not clipped"
+    ],
+    "label": false,
+    "reason": "blank page: no heading is shown"
+  },
+  {
+    "id": "c03",
+    "image": "images/blank.png",
+    "claim": "Confirm the toolbar buttons are aligned in a single row",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the toolbar buttons are aligned in a single row"
+    ],
+    "label": false,
+    "reason": "blank page: no toolbar is shown"
+  },
+  {
+    "id": "c04",
+    "image": "images/blank.png",
+    "claim": "Confirm no text on the page overlaps other text",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm no text on the page overlaps other text"
+    ],
+    "label": false,
+    "reason": "blank page: presupposes text, and none is shown"
+  },
+  {
+    "id": "c05",
+    "image": "images/blank.png",
+    "claim": "Confirm the logo is shown in the top-left corner",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the logo is shown in the top-left corner"
+    ],
+    "label": false,
+    "reason": "blank page: no logo"
+  },
+  {
+    "id": "c06",
+    "image": "images/blank-dark.png",
+    "claim": "Confirm no text in the navigation overlaps or is clipped",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm no text in the navigation overlaps or is clipped"
+    ],
+    "label": false,
+    "reason": "blank dark page: no navigation"
+  },
+  {
+    "id": "c07",
+    "image": "images/heading-only.png",
+    "claim": "Confirm no text in the navigation overlaps or is clipped",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm no text in the navigation overlaps or is clipped"
+    ],
+    "label": false,
+    "reason": "only a heading: no navigation"
+  },
+  {
+    "id": "c08",
+    "image": "images/heading-only.png",
+    "claim": "Confirm the sidebar icons are evenly spaced",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the sidebar icons are evenly spaced"
+    ],
+    "label": false,
+    "reason": "only a heading: no sidebar or icons"
+  },
+  {
+    "id": "c09",
+    "image": "images/footer-only.png",
+    "claim": "Confirm the cards in the grid are aligned to the same top edge",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the cards in the grid are aligned to the same top edge"
+    ],
+    "label": false,
+    "reason": "only a footer: no cards"
+  },
+  {
+    "id": "c10",
+    "image": "images/example.png",
+    "claim": "Confirm no text in the navigation overlaps or is clipped",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://example.com/ in the browser address bar",
+      "Confirm no text in the navigation overlaps or is clipped"
+    ],
+    "label": false,
+    "reason": "example.com has no navigation"
+  },
+  {
+    "id": "c11",
+    "image": "images/example.png",
+    "claim": "Confirm the search field shows a magnifying-glass icon",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://example.com/ in the browser address bar",
+      "Confirm the search field shows a magnifying-glass icon"
+    ],
+    "label": false,
+    "reason": "example.com has no search field"
+  },
+  {
+    "id": "c12",
+    "image": "images/cern.png",
+    "claim": "Confirm the links in the top navigation bar are evenly spaced",
+    "claim_number": 2,
+    "checklist": [
+      "Open http://info.cern.ch/ in the browser address bar",
+      "Confirm the links in the top navigation bar are evenly spaced"
+    ],
+    "label": false,
+    "reason": "info.cern.ch has no navigation bar, only a bulleted list"
+  },
+  {
+    "id": "c13",
+    "image": "images/cern.png",
+    "claim": "Confirm the CERN logo is shown at the top of the page",
+    "claim_number": 2,
+    "checklist": [
+      "Open http://info.cern.ch/ in the browser address bar",
+      "Confirm the CERN logo is shown at the top of the page"
+    ],
+    "label": false,
+    "reason": "info.cern.ch shows no logo"
+  },
+  {
+    "id": "c14",
+    "image": "images/button-blue.png",
+    "claim": "Confirm the Save button is filled with green",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the Save button is filled with green"
+    ],
+    "label": false,
+    "reason": "the Save button is blue"
+  },
+  {
+    "id": "c15",
+    "image": "images/button-blue.png",
+    "claim": "Confirm the Save button is filled with blue and has white text",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the Save button is filled with blue and has white text"
+    ],
+    "label": true,
+    "reason": "blue fill, white label"
+  },
+  {
+    "id": "c16",
+    "image": "images/banner-red.png",
+    "claim": "Confirm the payment error banner has a red background",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the payment error banner has a red background"
+    ],
+    "label": true,
+    "reason": "red banner"
+  },
+  {
+    "id": "c17",
+    "image": "images/banner-red.png",
+    "claim": "Confirm the payment error banner has a yellow background",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the payment error banner has a yellow background"
+    ],
+    "label": false,
+    "reason": "the banner is red"
+  },
+  {
+    "id": "c18",
+    "image": "images/hn.png",
+    "claim": "Confirm the top bar is orange",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://news.ycombinator.com/ in the browser address bar",
+      "Confirm the top bar is orange"
+    ],
+    "label": true,
+    "reason": "Hacker News's orange header"
+  },
+  {
+    "id": "c19",
+    "image": "images/hn.png",
+    "claim": "Confirm the top bar is blue",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://news.ycombinator.com/ in the browser address bar",
+      "Confirm the top bar is blue"
+    ],
+    "label": false,
+    "reason": "the top bar is orange"
+  },
+  {
+    "id": "c20",
+    "image": "images/playwright.png",
+    "claim": "Confirm the top navigation bar has an orange background",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://playwright.dev/docs/intro in the browser address bar",
+      "Confirm the top navigation bar has an orange background"
+    ],
+    "label": false,
+    "reason": "the top bar is white"
+  },
+  {
+    "id": "c21",
+    "image": "images/cards-row.png",
+    "claim": "Confirm the three plan cards sit side by side in one row",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the three plan cards sit side by side in one row"
+    ],
+    "label": true,
+    "reason": "three cards in a row"
+  },
+  {
+    "id": "c22",
+    "image": "images/cards-row.png",
+    "claim": "Confirm the three plan cards are stacked vertically, one per row",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the three plan cards are stacked vertically, one per row"
+    ],
+    "label": false,
+    "reason": "they are side by side"
+  },
+  {
+    "id": "c23",
+    "image": "images/cards-row.png",
+    "claim": "Confirm each plan card has a rounded border",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm each plan card has a rounded border"
+    ],
+    "label": true,
+    "reason": "1px border, 8px radius"
+  },
+  {
+    "id": "c24",
+    "image": "images/sidebar-right.png",
+    "claim": "Confirm the Related sidebar is on the right of the article",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the Related sidebar is on the right of the article"
+    ],
+    "label": true,
+    "reason": "sidebar on the right"
+  },
+  {
+    "id": "c25",
+    "image": "images/sidebar-right.png",
+    "claim": "Confirm the Related sidebar is on the left of the article",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the Related sidebar is on the left of the article"
+    ],
+    "label": false,
+    "reason": "it is on the right"
+  },
+  {
+    "id": "c26",
+    "image": "images/nav-clean.png",
+    "claim": "Confirm no text in the navigation overlaps or is clipped",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm no text in the navigation overlaps or is clipped"
+    ],
+    "label": true,
+    "reason": "clean navigation"
+  },
+  {
+    "id": "c27",
+    "image": "images/nav-clean.png",
+    "claim": "Confirm the navigation bar has a dark background with white link text",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the navigation bar has a dark background with white link text"
+    ],
+    "label": true,
+    "reason": "dark bar, white links"
+  },
+  {
+    "id": "c28",
+    "image": "images/nav-overlap.png",
+    "claim": "Confirm no text in the navigation overlaps or is clipped",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm no text in the navigation overlaps or is clipped"
+    ],
+    "label": false,
+    "reason": "Home, Products and Pricing overlap"
+  },
+  {
+    "id": "c29",
+    "image": "images/nav-clipped.png",
+    "claim": "Confirm no text in the navigation overlaps or is clipped",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm no text in the navigation overlaps or is clipped"
+    ],
+    "label": false,
+    "reason": "the bar cuts the bottom off every link"
+  },
+  {
+    "id": "c30",
+    "image": "images/button-clipped.png",
+    "claim": "Confirm the \"Submit application\" button label is fully visible, not cut off",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the \"Submit application\" button label is fully visible, not cut off"
+    ],
+    "label": false,
+    "reason": "the label is cut to \"Submit appl\""
+  },
+  {
+    "id": "c31",
+    "image": "images/button-full.png",
+    "claim": "Confirm the \"Submit application\" button label is fully visible, not cut off",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the \"Submit application\" button label is fully visible, not cut off"
+    ],
+    "label": true,
+    "reason": "full label"
+  },
+  {
+    "id": "c32",
+    "image": "images/low-contrast.png",
+    "claim": "Confirm the body text has strong contrast against the background and is easy to read",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the body text has strong contrast against the background and is easy to read"
+    ],
+    "label": false,
+    "reason": "very light grey on white"
+  },
+  {
+    "id": "c33",
+    "image": "images/high-contrast.png",
+    "claim": "Confirm the body text has strong contrast against the background and is easy to read",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the body text has strong contrast against the background and is easy to read"
+    ],
+    "label": true,
+    "reason": "near-black on white"
+  },
+  {
+    "id": "c34",
+    "image": "images/high-contrast.png",
+    "claim": "Confirm the navigation shows the links Home, Products, Pricing, Support and Contact",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the navigation shows the links Home, Products, Pricing, Support and Contact"
+    ],
+    "label": true,
+    "reason": "all five links shown"
+  },
+  {
+    "id": "c35",
+    "image": "images/form-misaligned.png",
+    "claim": "Confirm the sign-up form's fields are aligned to the same left edge",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the sign-up form's fields are aligned to the same left edge"
+    ],
+    "label": false,
+    "reason": "Email and Company are indented"
+  },
+  {
+    "id": "c36",
+    "image": "images/form-aligned.png",
+    "claim": "Confirm the sign-up form's fields are aligned to the same left edge",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the sign-up form's fields are aligned to the same left edge"
+    ],
+    "label": true,
+    "reason": "all fields share one left edge"
+  },
+  {
+    "id": "c37",
+    "image": "images/title-truncated.png",
+    "claim": "Confirm the full heading \"Quarterly results for the northern region\" is shown without truncation",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the full heading \"Quarterly results for the northern region\" is shown without truncation"
+    ],
+    "label": false,
+    "reason": "heading ends in an ellipsis"
+  },
+  {
+    "id": "c38",
+    "image": "images/title-full.png",
+    "claim": "Confirm the full heading \"Quarterly results for the northern region\" is shown without truncation",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the full heading \"Quarterly results for the northern region\" is shown without truncation"
+    ],
+    "label": true,
+    "reason": "full heading"
+  },
+  {
+    "id": "c39",
+    "image": "images/heading-only.png",
+    "claim": "Confirm the page shows a \"Welcome\" heading",
+    "claim_number": 2,
+    "checklist": [
+      "Open / in the browser address bar",
+      "Confirm the page shows a \"Welcome\" heading"
+    ],
+    "label": true,
+    "reason": "the heading is shown"
+  },
+  {
+    "id": "c40",
+    "image": "images/example.png",
+    "claim": "Confirm the text is centred in a narrow column",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://example.com/ in the browser address bar",
+      "Confirm the text is centred in a narrow column"
+    ],
+    "label": true,
+    "reason": "centred narrow column"
+  },
+  {
+    "id": "c41",
+    "image": "images/example.png",
+    "claim": "Confirm the \"Learn more\" link is shown below the paragraphs",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://example.com/ in the browser address bar",
+      "Confirm the \"Learn more\" link is shown below the paragraphs"
+    ],
+    "label": true,
+    "reason": "link at the bottom"
+  },
+  {
+    "id": "c42",
+    "image": "images/cern.png",
+    "claim": "Confirm the page has a plain white background with black text",
+    "claim_number": 2,
+    "checklist": [
+      "Open http://info.cern.ch/ in the browser address bar",
+      "Confirm the page has a plain white background with black text"
+    ],
+    "label": true,
+    "reason": "unstyled page"
+  },
+  {
+    "id": "c43",
+    "image": "images/wiki.png",
+    "claim": "Confirm the infobox appears to the right of the article text",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://en.wikipedia.org/wiki/WorldWideWeb in the browser address bar",
+      "Confirm the infobox appears to the right of the article text"
+    ],
+    "label": true,
+    "reason": "infobox right of the lead"
+  },
+  {
+    "id": "c44",
+    "image": "images/playwright.png",
+    "claim": "Confirm the docs sidebar is on the left and the page's table of contents is on the right",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://playwright.dev/docs/intro in the browser address bar",
+      "Confirm the docs sidebar is on the left and the page's table of contents is on the right"
+    ],
+    "label": true,
+    "reason": "three-column docs layout"
+  },
+  {
+    "id": "c45",
+    "image": "images/hn.png",
+    "claim": "Confirm the stories are numbered, each title followed by a line showing its points and comments",
+    "claim_number": 2,
+    "checklist": [
+      "Open https://news.ycombinator.com/ in the browser address bar",
+      "Confirm the stories are numbered, each title followed by a line showing its points and comments"
+    ],
+    "label": true,
+    "reason": "numbered list with subtext lines"
+  }
+]

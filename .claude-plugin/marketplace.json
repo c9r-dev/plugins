@@ -8,12 +8,17 @@
     {
       "name": "browser-check",
       "source": "./plugins/browser-check",
-      "description": "Run a plain-English QA checklist in a real browser, with a judgment model deciding each step."
+      "description": "Run a plain-English QA checklist in a real browser, with a classifier deciding each step."
     },
     {
       "name": "browser-check-visual",
       "source": "./plugins/browser-check-visual",
-      "description": "Judge browser-check's visual steps (layout, colour, clipping, icons) from a screenshot with a vision judgment model."
+      "description": "Judge browser-check's visual steps (layout, colour, clipping, icons) from a screenshot with a vision classifier."
+    },
+    {
+      "name": "soft-lint",
+      "source": "./plugins/soft-lint",
+      "description": "Ask a classifier plain-English yes/no questions about the lines a diff adds, after each edit or over a branch."
     }
   ]
 }

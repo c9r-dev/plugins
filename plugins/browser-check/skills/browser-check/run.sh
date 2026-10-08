@@ -20,7 +20,6 @@
 # The runner source lives beside this script and is copied into the worktree for each run, then removed.
 set -u
 SKILL_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-ENV_FILE=${JEV_ENV_FILE:-$HOME/.config/jev/env}
 APPS_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/browser-check/apps
 
 steps=${1:?steps file}; shift
@@ -46,12 +45,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ ! -f "$ENV_FILE" ]; then
-  echo "browser-check: $ENV_FILE not found; it must export CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, or TYPESAFE_API_KEY" >&2
-  exit 2
-fi
-# shellcheck disable=SC1090
-. "$ENV_FILE"
+# Refuse a model browser-check cannot use before Playwright starts, so the reason is one line, not a test failure.
+node "$SKILL_DIR/runner/check-model.ts" > /dev/null || exit 2
 
 case "$steps" in /*) ;; *) steps=$PWD/$steps ;; esac
 export QA_STEPS_FILE=$steps

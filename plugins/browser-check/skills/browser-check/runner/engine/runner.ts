@@ -3,17 +3,19 @@ import { writeFileSync } from "node:fs";
 import type { Locator, Page, TestInfo } from "@playwright/test";
 
 import { evidenceFiles, keepsEvidence } from "./evidence";
-import type { ChoiceQuestion, EntryType } from "./jev";
-import { askJev, jevUsage } from "./jev";
+import type { ChoiceQuestion, EntryType } from "./classifier";
+import { askClassifier, classifierModel, classifierUsage } from "./ask";
+import type { Thresholds } from "./thresholds";
+import { thresholdsFor } from "./thresholds";
 import type { Node } from "./tree";
 import { isUnnamed, nodesOf } from "./tree";
 import { judgeVisually } from "./visual";
 
 export type StepKind = "click" | "type" | "goto" | "verify" | "other";
 /**
- * `unsupported`: the step asks for something the page cannot do. `for-caller`: a visual claim, captured as a
- * full-page screenshot for the calling agent to judge, since Jev reads only the accessibility tree. A visual claim
- * is `passed` only by the visual judge, when one is configured.
+ * `unsupported`: the step asks for something the page cannot do. `for-caller`: a visual claim, captured as a full-page
+ * screenshot for the calling agent to judge, since the classifier reads only the accessibility tree. A visual claim is
+ * `passed` only by the visual judge, when one is configured.
  */
 export type StepStatus = "passed" | "failed" | "unsupported" | "for-caller";
 
@@ -36,7 +38,10 @@ export type StepResult = {
   settle_ms: number;
   /** Absolute path of this step's `step-N.png`, when one was taken. */
   screenshot?: string;
-  /** Absolute path of this step's `step-N.aria.yml`, the tree Jev decided the step from, when one was written. */
+  /**
+   * Absolute path of this step's `step-N.aria.yml`, the tree the classifier decided the step from, when one was
+   * written.
+   */
   tree?: string;
 };
 
@@ -48,8 +53,8 @@ export type QaReport = {
 type Outcome = Pick<StepResult, "status" | "detail" | "confidence">;
 
 /**
- * The step being run, the one before it (which Jev uses to resolve "then", "again" and "back"), and the actions
- * already carried out for this step, so a step that names several actions is worked through in order.
+ * The step being run, the one before it (which the classifier uses to resolve "then", "again" and "back"), and the
+ * actions already carried out for this step, so a step that names several actions is worked through in order.
  */
 type StepContext = {
   step: string;
@@ -66,6 +71,8 @@ type StepContext = {
   settleMs: number;
   /** Preflight verdict for this step. */
   flag: StepFlag;
+  /** The classifier model's thresholds for refusing a target and passing a verify. */
+  thresholds: Thresholds;
   /*
    * The last tree fetched for this step, which is the one its outcome was decided from: a verify's judged tree, a
    * refused action's candidates, and for a step of several actions the tree its final choice was made from.
@@ -96,14 +103,6 @@ const stateFor = (
 const numbered = (checklist: string[]) =>
   checklist.map((text, index) => `${index + 1}. ${text}`);
 
-/*
- * Below this Jev confidence the chosen element is a guess, not the one the step names. Measured: right targets
- * score 0.89–1.00, while wrong ones ("External Contacts" for "Contacts", "Close" for "Write Retrospective") score
- * 0.38–0.53 and used to pass, surfacing as a failure several steps later.
- */
-const ACTION_THRESHOLD = 0.7;
-/** A verify passes when Jev puts at least this probability on the claim holding. */
-const VERIFY_THRESHOLD = 0.7;
 /** Jev accepts at most 255 choice labels. */
 const MAX_CANDIDATES = 250;
 
@@ -175,7 +174,7 @@ const mayHoldUrl = (node: Node) =>
 
 /**
  * The page as Playwright's accessibility tree with element refs. An open dialog is the whole tree, since nothing
- * behind it can be interacted with; the tree is what Jev reads for both element choice and verification.
+ * behind it can be interacted with; the tree is what the classifier reads for both element choice and verification.
  */
 const snapshotTree = async (page: Page) => {
   const dialog = page.locator('[role="dialog"]').last();
@@ -246,14 +245,14 @@ type Target = {
 };
 
 /*
- * A choice is scored only against the other options, so without a way out Jev picks the least-bad element even when
- * the step names one the page does not have ("Sign up" clicked "Learn more" at 0.88).
+ * A choice is scored only against the other options, so without a way out the classifier picks the least-bad element
+ * even when the step names one the page does not have ("Sign up" clicked "Learn more" at 0.88).
  */
 const NONE = "none";
 
 /**
- * Nodes as choice criteria keyed by ref, plus the option that no element matches. Jev has the tree in the state, so
- * a label needs no row context.
+ * Nodes as choice criteria keyed by ref, plus the option that no element matches. The classifier has the tree in the
+ * state, so a label needs no row context.
  */
 const criteriaFor = (nodes: Node[]) => ({
   ...Object.fromEntries(
@@ -282,13 +281,13 @@ const targetFrom = (
  * choice of an unnamed element is refused too: nothing in the tree ties it to the words of the step, so its score
  * says only that the page offered nothing better (an unnamed `textbox` scored 1.00 for "the End date field").
  */
-const ensureTarget = (target: Target) => {
+const ensureTarget = (target: Target, { action }: Thresholds) => {
   if (isUnnamed(target.description)) {
     throw new Error(
       `chose ${target.description} with no accessible name (c=${target.confidence.toFixed(2)}); the tree cannot confirm it is the one the step names`,
     );
   }
-  if (target.confidence < ACTION_THRESHOLD) {
+  if (target.confidence < action) {
     throw new Error(
       `uncertain target ${target.description} (c=${target.confidence.toFixed(2)})`,
     );
@@ -349,9 +348,9 @@ const urlHeldBy = async (target: Target) => {
 };
 
 /*
- * Jev judges, it never generates, so it never writes a URL. A step either spells the destination out, or names
- * where on the page the URL is shown ("the URL in the Link field"): Jev picks that element like a click target,
- * and the value is read from the DOM unchanged.
+ * The classifier judges, it never generates, so it never writes a URL. A step either spells the destination out, or
+ * names where on the page the URL is shown ("the URL in the Link field"): the classifier picks that element like a
+ * click target, and the value is read from the DOM unchanged.
  */
 const performGoto = async (
   page: Page,
@@ -365,7 +364,7 @@ const performGoto = async (
     return { status: "passed", detail: `opened ${written}` };
   }
   const criteria = criteriaFor(nodesOf(tree).filter(mayHoldUrl));
-  const { answers } = await askJev(stateFor(page, context, tree), {
+  const { answers } = await askClassifier(stateFor(page, context, tree), {
     holder: {
       type: "choice",
       instructions: "Which element holds the URL the step says to open?",
@@ -376,7 +375,7 @@ const performGoto = async (
   if (!holder) {
     throw new Error("no element on the page holds the URL the step names");
   }
-  ensureTarget(holder);
+  ensureTarget(holder, context.thresholds);
   const url = await urlHeldBy(holder);
   if (url === undefined) {
     throw new Error(`${holder.description} holds no URL`);
@@ -403,15 +402,15 @@ const snapshotPage = async (page: Page, tree: string) => {
 };
 
 /*
- * The kind, a click target and a typing target are independent questions over the same page, so one Jev call
+ * The kind, a click target and a typing target are independent questions over the same page, so one classifier call
  * answers all three; the answers not matching the kind are simply unused. A verify is asked on its own: folded into
  * this call its verdicts drift towards the middle, and a check deserves the model's whole attention.
  */
-const judgeStep = async (page: Page, context: StepContext, tree: string) => {
+const classifyStep = async (page: Page, context: StepContext, tree: string) => {
   const nodes = nodesOf(tree);
   const click = criteriaFor(nodes.filter(isActionable));
   const type = criteriaFor(nodes.filter(isTypeable));
-  const { answers } = await askJev(
+  const { answers } = await askClassifier(
     stateFor(page, context, tree),
     {
       kind: {
@@ -445,7 +444,7 @@ const performVerify = async (
   context: StepContext,
   tree: string,
 ): Promise<Outcome> => {
-  const { answers } = await askJev(
+  const { answers } = await askClassifier(
     {
       claim: context.step,
       claim_number: context.number,
@@ -466,7 +465,7 @@ const performVerify = async (
   );
   const probability = answers.holds.noul;
   return {
-    status: probability >= VERIFY_THRESHOLD ? "passed" : "failed",
+    status: probability >= context.thresholds.verify ? "passed" : "failed",
     detail: `yes-probability ${probability.toFixed(2)}`,
     confidence: probability,
   };
@@ -485,7 +484,7 @@ const FLAGS: Record<StepFlag, string> = {
 };
 
 /*
- * One Jev call for the whole checklist before anything runs, one question per step, so steps the runner cannot
+ * One classifier call for the whole checklist before anything runs, one question per step, so steps the runner cannot
  * judge are reported up front rather than as puzzling failures in the middle of a run. The checklist is the state,
  * so a step that refers to another ("the text saved in step 6") is judged with that step in view.
  */
@@ -503,7 +502,7 @@ const COUNTS = {
 export type StepPlan = { flag: StepFlag; actions: number };
 
 /*
- * One Jev call for the whole checklist before anything runs: per step, whether the runner can judge it, and how
+ * One classifier call for the whole checklist before anything runs: per step, whether the runner can judge it, and how
  * many actions its wording names. Both are questions about the words, so they are asked with the checklist as the
  * state and no page in sight. The count bounds each step's actions exactly, which is what stops a step from
  * carrying on into the next one's work. The checklist is the state, so a step that refers to another
@@ -533,7 +532,7 @@ export const preflight = async (steps: string[]): Promise<StepPlan[]> => {
       ],
     ]),
   );
-  const { answers } = await askJev({ checklist: numbered(steps) }, questions);
+  const { answers } = await askClassifier({ checklist: numbered(steps) }, questions);
   return steps.map((_step, index) => {
     const flag = answers[`flag${index + 1}`]?.choice;
     return {
@@ -566,7 +565,7 @@ const followUpActions = async (page: Page, context: StepContext) => {
     }
     const criteria = criteriaFor(nodes);
     // oxlint-disable-next-line no-await-in-loop
-    const { answers } = await askJev(stateFor(page, context, tree), {
+    const { answers } = await askClassifier(stateFor(page, context, tree), {
       target: {
         type: "choice",
         instructions:
@@ -580,7 +579,7 @@ const followUpActions = async (page: Page, context: StepContext) => {
     if (!target) {
       break;
     }
-    ensureTarget(target);
+    ensureTarget(target, context.thresholds);
     // oxlint-disable-next-line no-await-in-loop
     await (payload === undefined
       ? clickTarget(target)
@@ -593,39 +592,42 @@ const followUpActions = async (page: Page, context: StepContext) => {
   return details;
 };
 
-const performJudged = async (
+const performClassified = async (
   page: Page,
   context: StepContext,
-  judged: Awaited<ReturnType<typeof judgeStep>>,
+  classified: Awaited<ReturnType<typeof classifyStep>>,
   tree: string,
 ): Promise<Outcome> => {
-  switch (judged.kind) {
+  switch (classified.kind) {
     case "click": {
-      if (!judged.click) {
+      if (!classified.click) {
         throw new Error("no element on the page matches the step");
       }
-      ensureTarget(judged.click);
-      await clickTarget(judged.click);
+      ensureTarget(classified.click, context.thresholds);
+      await clickTarget(classified.click);
       await settle(page, context);
-      return actionOutcome(judged.click);
+      return actionOutcome(classified.click);
     }
     case "type": {
       const payload = context.payloads.shift();
       if (payload === undefined) {
         return { status: "failed", detail: "no quoted text to type" };
       }
-      if (!judged.type) {
+      if (!classified.type) {
         throw new Error("no field on the page matches the step");
       }
-      ensureTarget(judged.type);
-      await typeInto(page, judged.type, payload);
+      ensureTarget(classified.type, context.thresholds);
+      await typeInto(page, classified.type, payload);
       await settle(page, context);
-      return actionOutcome(judged.type);
+      return actionOutcome(classified.type);
     }
     case "goto":
       return performGoto(page, context, tree);
     case "verify":
-      /* Jev sees only the accessibility tree, so its score on a visual claim is noise: a screenshot decides it. */
+      /*
+       * The classifier sees only the accessibility tree, so its score on a visual claim is noise: a screenshot decides
+       * it.
+       */
       return context.flag === "visual"
         ? judgeVisually(page, {
             claim: context.step,
@@ -647,9 +649,9 @@ const runStep = async (
     await settle(page, context);
     const tree = await snapshotTree(page);
     context.tree = tree;
-    const judged = await judgeStep(page, context, tree);
-    kind = judged.kind;
-    const outcome = await performJudged(page, context, judged, tree);
+    const classified = await classifyStep(page, context, tree);
+    kind = classified.kind;
+    const outcome = await performClassified(page, context, classified, tree);
     if (outcome.status !== "passed" || (kind !== "click" && kind !== "type")) {
       return { kind, ...outcome };
     }
@@ -704,13 +706,17 @@ const liveStatus = ({ status, flag }: StepResult) => {
 /**
  * Run a natural-language QA checklist against `page`, one line per step. Every step runs even after a failure, since
  * a wrong page makes later verifies fail and that is more informative than stopping. Every step that did not pass
- * attaches a screenshot and the tree Jev decided it from.
+ * attaches a screenshot and the tree the classifier decided it from.
  */
 export const runQaSteps = async (
   page: Page,
   lines: string[],
   testInfo: TestInfo,
 ): Promise<QaReport> => {
+  /* Resolved before any step runs, so a model without measured thresholds stops the run before it starts. */
+  const model = classifierModel();
+  const thresholds = thresholdsFor(model.name);
+  console.log(`[qa] classifier ${model.name}`);
   const results: StepResult[] = [];
   const steps = parseSteps(lines);
   const plans = await preflight(steps);
@@ -732,6 +738,7 @@ export const runQaSteps = async (
       actionBudget: Math.max(plans[index]?.actions ?? 1, quotedTexts(step).length),
       settleMs: 0,
       flag: plans[index]?.flag ?? "ok",
+      thresholds,
     };
     const outcome = await runStep(page, context);
     const elapsed = Date.now() - started;
@@ -767,5 +774,5 @@ export const runQaSteps = async (
       `[qa] ${result.number} ${liveStatus(result)} ${result.kind} ${result.elapsed_ms}ms settle=${result.settle_ms}ms a=${context.actionBudget} c=${result.confidence?.toFixed(2) ?? "-"} ${step.slice(0, 70)} | ${result.detail.slice(0, 100)}`,
     );
   }
-  return { steps: results, usage: jevUsage() };
+  return { steps: results, usage: classifierUsage() };
 };

@@ -6,12 +6,6 @@ import type { QaReport, StepResult } from "./runner";
 import { runQaSteps } from "./runner";
 import { isDecisive, verdict } from "./verdict";
 
-/*
- * The rate jev-browser uses for its own estimate (TypeSafe direct, `PRICE_PER_MTOK_IN`). Cloudflare Workers AI bills
- * on its own tariff, so this line is an order-of-magnitude guide; the Cloudflare dashboard is the source of truth.
- */
-const USD_PER_MILLION_INPUT_TOKENS = 0.042;
-
 const pad = (value: string | number, width: number) =>
   String(value).padEnd(width);
 
@@ -35,19 +29,15 @@ const formatRow = ({
     detail,
   ].join(" ");
 
-const formatReport = ({ steps, usage }: QaReport) => {
-  const estimate =
-    (usage.input_tokens / 1_000_000) * USD_PER_MILLION_INPUT_TOKENS;
-  return [
+const formatReport = ({ steps, usage }: QaReport) =>
+  [
     ...steps.map(formatRow),
-    `Jev: ${usage.calls} calls, ${usage.input_tokens} input tokens, ${usage.output_tokens} output tokens, ` +
-      `est. $${estimate.toFixed(4)} (estimate at $${USD_PER_MILLION_INPUT_TOKENS}/M input tokens)`,
+    `Classifier: ${usage.calls} calls, ${usage.input_tokens} input tokens, ${usage.output_tokens} output tokens`,
   ].join("\n");
-};
 
 /**
  * Run the checklist named by `QA_STEPS_FILE` (one step per line) against `page`, print the report, attach it to
- * the test, and return the steps that decide the result: failed steps Jev could judge. A flagged step is advisory
+ * the test, and return the steps that decide the result: failed steps the classifier could judge. A flagged step is advisory
  * or handed to the caller, so it is reported but never returned.
  */
 export const runChecklist = async (page: Page, testInfo: TestInfo) => {

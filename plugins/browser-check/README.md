@@ -2,11 +2,10 @@
 
 A Claude Code and Codex plugin that runs a checklist written in plain English in a real browser. Each line is
 an action ("Select the Generate Link button", `Type "Acme" into the Name field`) or a check ("Confirm the report
-lists three risks"). [Playwright](https://playwright.dev) drives the browser, and a judgment model decides each
+lists three risks"). [Playwright](https://playwright.dev) drives the browser, and a classifier decides each
 step: which element an action means, and whether a check holds.
 
-A 24-step flow runs in about 35 seconds for about a cent of judgment calls. Driving the same flow through a browser
-extension took Claude 14 minutes.
+A 24-step flow runs in about 35 seconds. Driving the same flow through a browser extension took Claude 14 minutes.
 
 ## What it is for
 
@@ -101,30 +100,38 @@ mv ~/.config/jev-browse ~/.config/browser-check
 
 ## Requirements
 
-- **Access to the judgment model, TypeSafe's Jev**, through Cloudflare Workers AI or TypeSafe's own API. Put the
-  credentials for either in `~/.config/jev/env` (or a file named by `$JEV_ENV_FILE`):
+- **Credentials for a classifier provider, in the environment.** Export them however you keep secrets: a shell
+  profile, direnv, a password manager's CLI. Each provider reads only its own variables:
 
   ```bash
-  # Cloudflare Workers AI (model typesafe/jev): an account with Workers AI access and a token that can run it
-  export CLOUDFLARE_ACCOUNT_ID=…
-  export CLOUDFLARE_API_TOKEN=…
-  export CLOUDFLARE_AI_GATEWAY=default   # optional: route through this AI Gateway
-
-  # TypeSafe's API (model jev-latest)
+  # TypeSafe's own API, which serves Jev (model typesafe:jev-latest)
   export TYPESAFE_API_KEY=…
 
-  export JEV_ROUTE=typesafe              # only when both are set: cloudflare or typesafe
+  # Cloudflare Workers AI (models cloudflare:typesafe/jev, cloudflare:@cf/cloudflare/clef, …): an account with
+  # Workers AI access and a token that can run it
+  export CLOUDFLARE_ACCOUNT_ID=…
+  export CLOUDFLARE_API_TOKEN=…
+  export CLOUDFLARE_AI_GATEWAY=default   # optional: send calls through this AI Gateway
   ```
 
-  With `CLOUDFLARE_AI_GATEWAY` set, every Cloudflare call carries `cf-aig-gateway-id`. A gateway on Unified billing
-  then pays from its prepaid credit rather than the account's free daily allocation.
+  `BROWSER_CHECK_MODEL` names the model, as `<provider>:<model id>`. Unset, browser-check asks Jev through whichever
+  provider has credentials, and stops asking you to set it when both have. Its thresholds for refusing a target and
+  passing a check (0.7 each) were measured on Jev, so it runs only on a model with measured thresholds: Jev, through
+  either provider. Any other model, Clef included, stops the run at the start until its thresholds are measured. For
+  example, browser-check on Clef through Cloudflare beside soft-lint on Jev through TypeSafe is
+  `BROWSER_CHECK_MODEL=cloudflare:@cf/cloudflare/clef` with `SOFT_LINT_MODEL=typesafe:jev-latest`, once Clef has
+  thresholds.
+
+  With `CLOUDFLARE_AI_GATEWAY` set, every Cloudflare call goes through that gateway with a cache key of the model and
+  the exact request, kept for a month. A step asked again about an identical page and checklist is answered from the
+  cache, so a rerun against an unchanged build returns the same verdicts.
 
 - **Playwright 1.59 or newer and a browser, already installed.** The plugin uses yours and never installs or pins
   either: the checkout's or a global `@playwright/test`, and Playwright's own browser build, or for Chromium your
   installed Google Chrome. When one is missing, the run stops with the command that fixes it.
 - **The app already served** at the URL the run will hit. The plugin never starts servers or seeds data.
 
-The runner sends the page's accessibility tree and checklist text to the chosen route for the model's decisions.
+The runner sends the page's accessibility tree and checklist text to the chosen model's provider for its decisions.
 Codex must be able to execute Playwright locally and reach that API; its sandbox may request
 permission for those operations.
 

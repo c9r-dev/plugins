@@ -1,13 +1,13 @@
 ---
 name: browser-check
-description: Run a plain-English browser QA checklist against a served web app, each step judged by a judgment model. Use after a user-visible change when browser QA is appropriate, for a PR's QA steps, or to compare two builds. Start from a URL or an app's logged-in e2e fixture. Trigger words include qa check, check the flow, verify the steps, and run the QA steps.
+description: Run a plain-English browser QA checklist against a served web app, each step judged by a classifier. Use after a user-visible change when browser QA is appropriate, for a PR's QA steps, or to compare two builds. Start from a URL or an app's logged-in e2e fixture. Trigger words include qa check, check the flow, verify the steps, and run the QA steps.
 ---
 
 # browser-check
 
 Executes a checklist written as plain English, one step per line. Each step is an action (click, type, open a
 URL) or a check ("Confirm …"). Jev picks the element to act on from the page's accessibility tree and judges each
-check against the settled page. Measured on a 24-step flow: ~35 s and ~$0.01, against 14 minutes for Claude
+check against the settled page. Measured on a 24-step flow: ~35 s, against 14 minutes for Claude
 driving the same flow through a browser extension.
 
 It is a QA aid, not a merge gate: a pass is Jev's judgement at ≥ 0.7 probability, not a locator assertion.
@@ -38,7 +38,7 @@ steps; one it handed back is yours to judge as usual.
 browser-check drives a live page. To judge image files that already exist, such as screenshots from another run or
 a design mock, you need no browser-check: read them directly.
 
-The runner sends the accessibility tree and checklist text to the chosen route (Cloudflare or TypeSafe) for Jev decisions.
+The runner sends the accessibility tree and checklist text to the chosen model's provider (Cloudflare or TypeSafe).
 
 ## The skill runs steps. The caller owns the target.
 
@@ -50,10 +50,15 @@ Before calling it, the caller has already made sure that:
 
 The skill checks none of that. A run against the wrong build passes or fails on that build.
 
-Its one dependency of its own: a file at `$JEV_ENV_FILE` or `~/.config/jev/env` exporting credentials for Jev,
-either `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (Cloudflare Workers AI; an optional `CLOUDFLARE_AI_GATEWAY`
-routes through that AI Gateway) or `TYPESAFE_API_KEY` (TypeSafe's own API). With both, `JEV_ROUTE=cloudflare` or
-`JEV_ROUTE=typesafe` picks one. If the file is missing, ask the user; never search for credentials.
+Its one dependency of its own: a classifier provider's credentials in the environment, either `TYPESAFE_API_KEY`
+(TypeSafe's own API) or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (Cloudflare Workers AI; an optional
+`CLOUDFLARE_AI_GATEWAY` sends calls through that AI Gateway, which caches each answer for a month). If they are not
+set, ask the user; never search for credentials.
+
+`BROWSER_CHECK_MODEL` names the model as `<provider>:<model id>`: `typesafe:jev-latest` or `cloudflare:typesafe/jev`.
+Unset, it is Jev through whichever provider has credentials; with both providers' credentials it must be set. The
+step thresholds were measured on Jev, so any other model (`cloudflare:@cf/cloudflare/clef` included) stops the run at
+the start, saying its thresholds have not been measured yet. Relay that to the user; do not work around it.
 
 It uses the Playwright and browser already on the machine; it never installs or pins either:
 
@@ -142,7 +147,7 @@ Jev judges; it never generates. So:
 
 ## Reading the result
 
-Live lines while it runs, then a table and a Jev usage line:
+Live lines while it runs, then a table and a classifier usage line:
 
 ```
 [qa] preflight 16 transient: Confirm the Edit Exercise modal shows a brief loading state, then …
@@ -216,7 +221,6 @@ All of it lands in the same output directory.
   the button also needs a confirmation) does the first and leaves the rest; the next step usually picks it up,
   and the `detail` chain shows what was done.
 - Step count is bounded only by the 10-minute timeout (~1.5 s per step).
-- The cost line is an estimate at TypeSafe's direct rate; Cloudflare bills Workers AI on its own tariff.
 - `--app` covers only the apps with a manifest; use `--url` otherwise.
 - Jev reads the whole page tree on every step (an open dialog's tree when one is open), never a cut-down one, so an
   element late in the DOM such as a drawer tab is still in view. Measured: about 25k input tokens worked and about
