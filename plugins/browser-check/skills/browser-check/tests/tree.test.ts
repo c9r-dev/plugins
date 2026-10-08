@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isUnnamed, nodesOf } from "../runner/engine/tree.ts";
+import { isUnnamed, nodesOf, withRefsOnly } from "../runner/engine/tree.ts";
 
 /* Playwright 1.63's AI-mode snapshot: it drops a name computed from content that is still printed as children. */
 const TREE = `- main [ref=e2]:
@@ -59,5 +59,24 @@ describe("isUnnamed", () => {
 
   it("accepts a button named by its content", () => {
     assert.equal(isUnnamed(labelOf("e3")), false);
+  });
+});
+
+describe("withRefsOnly", () => {
+  it("keeps the refs offered and drops every other, leaving the rest of each line", () => {
+    assert.equal(
+      withRefsOnly(TREE, new Set(["e3", "e13"])).split("\n").slice(0, 4).join("\n"),
+      `- main:
+  - button [ref=e3]:
+    - paragraph: Credit Budgets
+  - button:`,
+    );
+  });
+
+  it("keeps other annotations on a node whose ref it drops", () => {
+    assert.equal(
+      withRefsOnly('- generic "Content Injection (T1659)" [ref=e2233] [cursor=pointer]:', new Set()),
+      '- generic "Content Injection (T1659)" [cursor=pointer]:',
+    );
   });
 });

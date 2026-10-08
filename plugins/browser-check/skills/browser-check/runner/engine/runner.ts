@@ -2,13 +2,15 @@ import { writeFileSync } from "node:fs";
 
 import type { Locator, Page, TestInfo } from "@playwright/test";
 
+import type { Choice, Finalist } from "./choice";
+import { choiceAmong, finalistsOf, offeredRefs, questionsFor } from "./choice";
 import { evidenceFiles, keepsEvidence } from "./evidence";
 import type { ChoiceQuestion, EntryType } from "./classifier";
 import { askClassifier, classifierModel, classifierUsage } from "./ask";
 import type { Thresholds } from "./thresholds";
 import { thresholdsFor } from "./thresholds";
 import type { Node } from "./tree";
-import { isUnnamed, nodesOf } from "./tree";
+import { isUnnamed, nodesOf, withRefsOnly } from "./tree";
 import { judgeVisually } from "./visual";
 
 export type StepKind = "click" | "type" | "goto" | "verify" | "other";
@@ -93,18 +95,16 @@ const stateFor = (
   page: Page,
   { step, actionsTaken }: StepContext,
   tree: string,
+  choices: Choice[],
 ) => ({
   step,
   actions_already_taken_for_this_step: actionsTaken,
   current_url: page.url(),
-  page: { tree },
+  page: { tree: withRefsOnly(tree, offeredRefs(choices)) },
 });
 
 const numbered = (checklist: string[]) =>
   checklist.map((text, index) => `${index + 1}. ${text}`);
-
-/** Jev accepts at most 255 choice labels. */
-const MAX_CANDIDATES = 250;
 
 const KINDS = {
   click:
@@ -244,37 +244,44 @@ type Target = {
   confidence: number;
 };
 
-/*
- * A choice is scored only against the other options, so without a way out the classifier picks the least-bad element
- * even when the step names one the page does not have ("Sign up" clicked "Learn more" at 0.88).
- */
-const NONE = "none";
-
-/**
- * Nodes as choice criteria keyed by ref, plus the option that no element matches. The classifier has the tree in the
- * state, so a label needs no row context.
- */
-const criteriaFor = (nodes: Node[]) => ({
-  ...Object.fromEntries(
-    nodes
-      .slice(0, MAX_CANDIDATES)
-      .map((node) => [node.ref, node.label]),
-  ),
-  [NONE]: "No element on the page is the one the step names",
+const targetOf = (page: Page, { ref, label, confidence }: Finalist): Target => ({
+  locator: page.locator(`aria-ref=${ref}`),
+  description: label,
+  confidence,
 });
 
-const targetFrom = (
+type Answers = Partial<Record<string, { choice: string; confidence: number }>>;
+
+/*
+ * The element `choice` settles on from its slices' answers. When more than one slice names an element, those
+ * finalists are put to the classifier again as a choice of their own, since each was scored only against its own
+ * slice.
+ */
+const decide = async (
   page: Page,
-  criteria: Record<string, string>,
-  { choice, confidence }: { choice: string; confidence: number },
-): Target | null =>
-  choice === NONE || criteria[choice] === undefined
-    ? null
-    : {
-        locator: page.locator(`aria-ref=${choice}`),
-        description: criteria[choice],
-        confidence,
-      };
+  context: StepContext,
+  tree: string,
+  choice: Choice,
+  answers: Answers,
+): Promise<Target | null> => {
+  const finalists = finalistsOf(choice, answers);
+  if (finalists.length > 1) {
+    const runOff = choiceAmong(choice.name, choice.instructions, finalists);
+    const again = await askClassifier(stateFor(page, context, tree, [runOff]), questionsFor(runOff));
+    return decide(page, context, tree, runOff, again.answers);
+  }
+  const [finalist] = finalists;
+  return finalist === undefined ? null : targetOf(page, finalist);
+};
+
+/** Ask `choice` on its own and settle it. A choice with no candidates has no question to ask, and no element. */
+const choose = async (page: Page, context: StepContext, tree: string, choice: Choice) => {
+  if (choice.slices.length === 0) {
+    return null;
+  }
+  const { answers } = await askClassifier(stateFor(page, context, tree, [choice]), questionsFor(choice));
+  return decide(page, context, tree, choice, answers);
+};
 
 /*
  * Refuse a target before acting on it, so a wrong click never leaves later steps on the wrong page. A confident
@@ -363,15 +370,12 @@ const performGoto = async (
     await settle(page, context);
     return { status: "passed", detail: `opened ${written}` };
   }
-  const criteria = criteriaFor(nodesOf(tree).filter(mayHoldUrl));
-  const { answers } = await askClassifier(stateFor(page, context, tree), {
-    holder: {
-      type: "choice",
-      instructions: "Which element holds the URL the step says to open?",
-      criteria,
-    },
-  });
-  const holder = targetFrom(page, criteria, answers.holder);
+  const holder = await choose(
+    page,
+    context,
+    tree,
+    choiceAmong("holder", "Which element holds the URL the step says to open?", nodesOf(tree).filter(mayHoldUrl)),
+  );
   if (!holder) {
     throw new Error("no element on the page holds the URL the step names");
   }
@@ -396,7 +400,8 @@ const snapshotPage = async (page: Page, tree: string) => {
     url: page.url(),
     title: await page.title(),
     dialog_open: await page.locator('[role="dialog"]').last().isVisible(),
-    tree,
+    /* A verify chooses no element, so no ref means anything to it. */
+    tree: withRefsOnly(tree, new Set()),
     text: text.replace(/\s+/g, " ").trim().slice(0, 6000),
   };
 };
@@ -404,38 +409,34 @@ const snapshotPage = async (page: Page, tree: string) => {
 /*
  * The kind, a click target and a typing target are independent questions over the same page, so one classifier call
  * answers all three; the answers not matching the kind are simply unused. A verify is asked on its own: folded into
- * this call its verdicts drift towards the middle, and a check deserves the model's whole attention.
+ * this call its verdicts drift towards the middle, and a check deserves the model's whole attention. A target is
+ * settled only for the kind the step turns out to be, since settling one can take a further call.
  */
 const classifyStep = async (page: Page, context: StepContext, tree: string) => {
   const nodes = nodesOf(tree);
-  const click = criteriaFor(nodes.filter(isActionable));
-  const type = criteriaFor(nodes.filter(isTypeable));
-  const { answers } = await askClassifier(
-    stateFor(page, context, tree),
-    {
-      kind: {
-        type: "choice",
-        instructions: "What kind of QA step is this?",
-        criteria: KINDS,
-      },
-      click: {
-        type: "choice",
-        instructions:
-          "If the step is carried out by clicking, which element should be clicked?",
-        criteria: click,
-      },
-      type: {
-        type: "choice",
-        instructions:
-          "If the step is carried out by typing, which field or editor should the text be typed into?",
-        criteria: type,
-      },
-    },
+  const click = choiceAmong(
+    "click",
+    "If the step is carried out by clicking, which element should be clicked?",
+    nodes.filter(isActionable),
   );
+  const type = choiceAmong(
+    "type",
+    "If the step is carried out by typing, which field or editor should the text be typed into?",
+    nodes.filter(isTypeable),
+  );
+  const { answers } = await askClassifier(stateFor(page, context, tree, [click, type]), {
+    kind: {
+      type: "choice" as const,
+      instructions: "What kind of QA step is this?",
+      criteria: KINDS,
+    },
+    ...questionsFor(click),
+    ...questionsFor(type),
+  });
   return {
     kind: answers.kind.choice,
-    click: targetFrom(page, click, answers.click),
-    type: targetFrom(page, type, answers.type),
+    click: () => decide(page, context, tree, click, answers),
+    type: () => decide(page, context, tree, type, answers),
   };
 };
 
@@ -563,19 +564,12 @@ const followUpActions = async (page: Page, context: StepContext) => {
     if (nodes.length === 0) {
       break;
     }
-    const criteria = criteriaFor(nodes);
+    const instructions =
+      payload === undefined
+        ? "Which element does the step say to act on next?"
+        : "Which field should this step's next quoted value be typed into?";
     // oxlint-disable-next-line no-await-in-loop
-    const { answers } = await askClassifier(stateFor(page, context, tree), {
-      target: {
-        type: "choice",
-        instructions:
-          payload === undefined
-            ? "Which element does the step say to act on next?"
-            : "Which field should this step's next quoted value be typed into?",
-        criteria,
-      },
-    });
-    const target = targetFrom(page, criteria, answers.target);
+    const target = await choose(page, context, tree, choiceAmong("target", instructions, nodes));
     if (!target) {
       break;
     }
@@ -600,26 +594,28 @@ const performClassified = async (
 ): Promise<Outcome> => {
   switch (classified.kind) {
     case "click": {
-      if (!classified.click) {
+      const target = await classified.click();
+      if (!target) {
         throw new Error("no element on the page matches the step");
       }
-      ensureTarget(classified.click, context.thresholds);
-      await clickTarget(classified.click);
+      ensureTarget(target, context.thresholds);
+      await clickTarget(target);
       await settle(page, context);
-      return actionOutcome(classified.click);
+      return actionOutcome(target);
     }
     case "type": {
       const payload = context.payloads.shift();
       if (payload === undefined) {
         return { status: "failed", detail: "no quoted text to type" };
       }
-      if (!classified.type) {
+      const target = await classified.type();
+      if (!target) {
         throw new Error("no field on the page matches the step");
       }
-      ensureTarget(classified.type, context.thresholds);
-      await typeInto(page, classified.type, payload);
+      ensureTarget(target, context.thresholds);
+      await typeInto(page, target, payload);
       await settle(page, context);
-      return actionOutcome(classified.type);
+      return actionOutcome(target);
     }
     case "goto":
       return performGoto(page, context, tree);

@@ -180,7 +180,8 @@ Live lines while it runs, then a table and a classifier usage line:
 - The last live line, `[qa] artifacts in <dir>`, names the run's output directory. It always holds
   `qa-report.json` (every step with kind, status, detail, confidence, elapsed and settle time, and the absolute
   paths `screenshot` and `tree` of its `step-N.png` and `step-N.aria.yml` when it has them), and both files for
-  each step that did not pass. `step-N.aria.yml` is the exact accessibility tree Jev decided the step from.
+  each step that did not pass. `step-N.aria.yml` is the accessibility tree Jev decided the step from, with every
+  ref kept (Jev saw a ref only on the elements it was offered).
 - The very last line is the verdict, e.g. `[qa] verdict FAIL: 8 of 9 decisive steps passed (failed: 4); for you
   to judge: 5 → /abs/…/step-5.png; advisory, not decisive: 2, 7`. PASS or FAIL counts decisive steps only, and
   matches the exit status; it says nothing about the steps listed for you to judge.
@@ -223,8 +224,10 @@ All of it lands in the same output directory.
 - Step count is bounded only by the 10-minute timeout (~1.5 s per step).
 - `--app` covers only the apps with a manifest; use `--url` otherwise.
 - Jev reads the whole page tree on every step (an open dialog's tree when one is open), never a cut-down one, so an
-  element late in the DOM such as a drawer tab is still in view. Measured: about 25k input tokens worked and about
-  50k failed with `max_tokens_exceeded`; a typical app page is about 5k. A page past the limit fails that step
-  with Jev's error.
+  element late in the DOM such as a drawer tab is still in view. The tree is sent with a ref only on the elements
+  the step offers Jev, and with none for a check: refs were 40% of a 108 KB checkbox grid's tokens (28.7k with
+  every ref, 17.5k with none). Every candidate element is offered, in questions of at most 250, and when more than
+  one question picks an element Jev chooses between those picks in one more call. A page still past Jev's limit
+  fails that step with `max_tokens_exceeded`; a typical app page is about 5k tokens.
 - Elements hidden from the accessibility tree cannot be targeted, such as a date picker whose input is
   `aria-hidden`. Seed that data instead of filling it.
