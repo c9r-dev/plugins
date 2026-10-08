@@ -194,6 +194,21 @@ Report to the user: the verdict line word for word, your judgement of each step 
 failed step with its detail, and what the screenshots of the advisory steps show. Not the whole table. If
 delegated, have the subagent relay the verdict line verbatim along with its judgements.
 
+**Write up each failure that is not just the knock-on of an earlier one.** A detail such as `uncertain target
+checkbox "X" (c=0.58)` says what Jev did, not why. Read that step's `step-N.aria.yml` (see Debugging a failure)
+and tell the user:
+
+- The step's text, and the step before it when it set up the page (a search, a filter, an open dialog).
+- What the page held at that point, in its own terms: the region the step points at, and the elements in it that
+  could be the target, quoted as the tree names them. Show the structure that matters, such as the same label
+  repeated in each group or row, or a parent and a child whose names overlap.
+- Which element the step means, which one Jev chose or would have chosen, and whether the refusal or failure was
+  right.
+- When the step's wording is what left Jev unsure, a rewritten step that names the element as the tree does
+  (`Tick "Report (R-12)" in the Archive group`, not `Tick Report in Archive`). When no wording can tell the
+  candidates apart, because they share a name and differ only by position, say so: the fix is the page's
+  accessible names, or a step that narrows the page first, not the wording.
+
 ## Debugging a failure
 
 Read the failed or handed-over step's `step-N.aria.yml` first: it is the tree Jev saw, the one it chose the element
