@@ -46,6 +46,20 @@ describe("nodesOf", () => {
     assert.equal(labelOf("e17"), 'link "Reports icon Monthly reports"');
   });
 
+  it("decodes the YAML escapes that JSON lacks", () => {
+    const [node] = nodesOf(parseTree(String.raw`- button "\0\a\e\v\N\_\L\P\ \/\U0001F600" [ref=e1]`));
+    assert.equal(node?.name, "\0\x07\x1b\v\x85\xa0\u2028\u2029 /\u{1F600}");
+  });
+
+  it("refuses an escape YAML does not define, naming it", () => {
+    assert.throws(() => parseTree(String.raw`- button "A\q" [ref=e1]`), /invalid escape \\q in YAML scalar/u);
+  });
+
+  it("reads a line whose whole key Playwright single-quotes", () => {
+    const [node] = nodesOf(parseTree(`- 'button "Don''t: save" [ref=e1]'`));
+    assert.deepEqual([node?.ref, node?.label], ["e1", 'button "Don\'t: save"']);
+  });
+
   it("leaves a container unnamed, since its role never takes a name from content", () => {
     assert.equal(labelOf("e14"), "generic");
     assert.equal(labelOf("e2"), "main");
@@ -129,6 +143,10 @@ describe("treeForJev", () => {
       sent(lines('- group "Option 3 (X-3)":', "  - text: 3", '  - link "More"')),
       lines('- group "Option 3 (X-3)":', ' - link "More"'),
     );
+  });
+
+  it("keeps an empty text leaf, since an empty text holds no words", () => {
+    assert.equal(sent(lines('- generic "Card":', '  - paragraph: ""')), lines('- generic "Card":', ' - paragraph: ""'));
   });
 
   it("keeps a control whose value the enclosing name holds", () => {
@@ -246,6 +264,32 @@ describe("withContext", () => {
       '  - button "Copy" [ref=e1]',
       '  - heading "Usage" [level=2]',
       '  - button "Copy" [ref=e2]',
+    );
+    assert.deepEqual(labelled(tree, ["e1", "e2"]), [
+      'button "Copy" — under heading "Install"',
+      'button "Copy" — under heading "Usage"',
+    ]);
+  });
+
+  it("drops a heading once the walk leaves the container it sits in", () => {
+    const tree = lines(
+      "- main:",
+      '  - heading "Install" [level=2]',
+      '  - button "Copy" [ref=e1]',
+      "- contentinfo:",
+      '  - button "Copy" [ref=e2]',
+    );
+    assert.deepEqual(labelled(tree, ["e1", "e2"]), ['button "Copy" — under heading "Install"', 'button "Copy"']);
+  });
+
+  it("keeps a heading in a generic wrapper over what follows the wrapper", () => {
+    const tree = lines(
+      "- generic:",
+      '  - heading "Install" [level=2]',
+      '- button "Copy" [ref=e1]',
+      "- generic:",
+      '  - heading "Usage" [level=2]',
+      '- button "Copy" [ref=e2]',
     );
     assert.deepEqual(labelled(tree, ["e1", "e2"]), [
       'button "Copy" — under heading "Install"',
@@ -431,6 +475,10 @@ describe("isCopyOf", () => {
 
   it("does not take different names for copies", () => {
     assert.equal(isCopy('link "Install"', 'link "Usage"'), false);
+  });
+
+  it("does not take an empty name for a copy of a named one", () => {
+    assert.equal(isCopy('textbox ""', 'button "Save"'), false);
   });
 
   it("takes the same label for a copy, unnamed ones included", () => {

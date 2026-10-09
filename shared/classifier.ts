@@ -207,23 +207,28 @@ const jsonIn = (text: string): unknown => {
 };
 
 /*
- * The provider's code in a failure body. TypeSafe answers `{"detail":{"error_type":…}}`; Cloudflare relays that body
- * as text inside one of its `errors` (or `error`) entries' `message`, after a prefix of its own.
+ * The provider's code in a failure body: TypeSafe's `{"detail":{"error_type":…}}`, wherever it sits. Cloudflare
+ * relays that body as text after a prefix of its own, in an `error` or `errors` field it shapes as a string, an
+ * object or an array of entries, so every value is searched and a string is read from its first `{`.
  */
 const errorCodeOf = (body: unknown): string | undefined => {
+  if (typeof body === "string") {
+    const start = body.indexOf("{");
+    return start === -1 ? undefined : errorCodeOf(jsonIn(body.slice(start)));
+  }
   if (!isObject(body)) {
     return undefined;
   }
-  if ("detail" in body && isObject(body.detail) && "error_type" in body.detail) {
-    return typeof body.detail.error_type === "string" ? body.detail.error_type : undefined;
+  if (
+    "detail" in body &&
+    isObject(body.detail) &&
+    "error_type" in body.detail &&
+    typeof body.detail.error_type === "string"
+  ) {
+    return body.detail.error_type;
   }
-  const entries = [
-    ...("errors" in body && Array.isArray(body.errors) ? body.errors : []),
-    ...("error" in body && Array.isArray(body.error) ? body.error : []),
-  ];
-  for (const entry of entries) {
-    const message = isObject(entry) && "message" in entry && typeof entry.message === "string" ? entry.message : "";
-    const code = errorCodeOf(jsonIn(message.slice(message.indexOf("{"))));
+  for (const value of Object.values(body)) {
+    const code = errorCodeOf(value);
     if (code !== undefined) {
       return code;
     }

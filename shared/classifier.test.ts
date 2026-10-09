@@ -317,6 +317,24 @@ describe("classify", () => {
     );
   });
 
+  test("an HTTP error carries the code Cloudflare relays in an error string", async () => {
+    const relayed = 'Model execution failed (User Input Error): {"detail":{"error_type":"max_tokens_exceeded"}}';
+    respond(400, JSON.stringify({ success: false, result: [], error: relayed }));
+    await assert.rejects(
+      classify(typesafe, jevOnTypesafe, { state, questions: isIt }),
+      (error) => error instanceof ClassifierError && error.code === "max_tokens_exceeded",
+    );
+  });
+
+  test("an HTTP error carries the code Cloudflare relays in an error object", async () => {
+    const relayed = 'Model execution failed (User Input Error): {"detail":{"error_type":"max_tokens_exceeded"}}';
+    respond(400, JSON.stringify({ success: false, result: [], error: { code: 7003, message: relayed } }));
+    await assert.rejects(
+      classify(typesafe, jevOnTypesafe, { state, questions: isIt }),
+      (error) => error instanceof ClassifierError && error.code === "max_tokens_exceeded",
+    );
+  });
+
   test("an HTTP error whose body is not JSON carries no code", async () => {
     respond(500, "<html>down</html>");
     await assert.rejects(

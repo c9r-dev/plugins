@@ -91,24 +91,94 @@ export const isActionable = (node: Node) => !node.disabled && (CONTROL_ROLES.has
 /** A field a typing step may type into. */
 export const isTypeable = (node: Node) => !node.disabled && TYPEABLE_ROLES.has(node.role);
 
-/** A YAML scalar as Playwright writes it: plain, or double-quoted with JSON escapes plus `\xNN`. */
-const unquote = (scalar: string): string =>
-  scalar.startsWith('"')
-    ? (JSON.parse(
-        scalar.replace(/\\(?:x([0-9a-f]{2})|[\s\S])/g, (escape, hex?: string) =>
-          hex === undefined ? escape : `\\u00${hex}`,
-        ),
-      ) as string)
-    : scalar;
+/* YAML 1.2's double-quoted escapes (https://yaml.org/spec/1.2.2/#57-escaped-characters) besides the hex ones. */
+const YAML_ESCAPES = new Map([
+  ["0", "\0"],
+  ["a", "\x07"],
+  ["b", "\b"],
+  ["t", "\t"],
+  ["\t", "\t"],
+  ["n", "\n"],
+  ["v", "\v"],
+  ["f", "\f"],
+  ["r", "\r"],
+  ["e", "\x1b"],
+  [" ", " "],
+  ['"', '"'],
+  ["/", "/"],
+  ["\\", "\\"],
+  ["N", "\x85"],
+  ["_", "\xa0"],
+  ["L", "\u2028"],
+  ["P", "\u2029"],
+]);
+
+/** An escape or a bare quote in a double-quoted scalar's body; a bare quote would have ended the scalar. */
+const DOUBLE_QUOTED_TOKEN = /\\(?:x(?<x>[0-9a-fA-F]{2})|u(?<u>[0-9a-fA-F]{4})|U(?<U>[0-9a-fA-F]{8})|(?<escaped>[\s\S]?))|"/g;
+
+const decodedEscape = (token: RegExpMatchArray, scalar: string) => {
+  const { x, u, U, escaped } = token.groups ?? {};
+  const hex = x ?? u ?? U;
+  if (hex !== undefined) {
+    const codePoint = Number.parseInt(hex, 16);
+    if (codePoint > 0x10ffff) {
+      throw new Error(`escape ${token[0]} is past the last code point, in YAML scalar ${scalar}`);
+    }
+    return String.fromCodePoint(codePoint);
+  }
+  const decoded = escaped === undefined ? undefined : YAML_ESCAPES.get(escaped);
+  if (decoded === undefined) {
+    throw new Error(`invalid ${token[0] === '"' ? "unescaped quote" : `escape ${token[0]}`} in YAML scalar ${scalar}`);
+  }
+  return decoded;
+};
+
+const doubleQuoted = (scalar: string) => {
+  const body = scalar.slice(1, -1);
+  let text = "";
+  let copied = 0;
+  for (const token of body.matchAll(DOUBLE_QUOTED_TOKEN)) {
+    text += body.slice(copied, token.index) + decodedEscape(token, scalar);
+    copied = token.index + token[0].length;
+  }
+  return text + body.slice(copied);
+};
+
+const singleQuoted = (scalar: string) =>
+  scalar.slice(1, -1).replace(/''|'/g, (match) => {
+    if (match === "'") {
+      throw new Error(`invalid unescaped quote in YAML scalar ${scalar}`);
+    }
+    return "'";
+  });
+
+/** A YAML scalar as written on one line: plain, double-quoted or single-quoted. */
+const unquote = (scalar: string): string => {
+  const quote = scalar[0];
+  if (quote !== '"' && quote !== "'") {
+    return scalar;
+  }
+  if (scalar.length < 2 || !scalar.endsWith(quote)) {
+    throw new Error(`unterminated YAML scalar ${scalar}`);
+  }
+  return quote === '"' ? doubleQuoted(scalar) : singleQuoted(scalar);
+};
 
 const scalarOf = (printed: string | undefined) =>
   printed === undefined ? undefined : { printed, text: unquote(printed) };
 
+/*
+ * A line is `- key`, `- key:` or `- key: value`. Playwright single-quotes the whole key when it holds YAML syntax,
+ * such as a name with `: ` or `{`: `- 'button "Note: draft" [ref=e3]'`. A plain key ends at the first `: ` outside its
+ * quoted name.
+ */
+const LINE = /^- (?<key>'(?:[^']|'')*'|(?:"(?:[^"\\]|\\.)*"|[^"])*?)(?::(?: (?<value>.*))?)?$/;
+
+const KEY = /^(?<role>[a-z]+)(?: (?<name>"(?:[^"\\]|\\.)*"))?(?<annotations>(?: \[[^\]]*\])*)$/;
+
 const headOf = (line: string): Head | string => {
-  const parts =
-    /^- (?<role>[a-z]+)(?: (?<name>"(?:[^"\\]|\\.)*"))?(?<annotations>(?: \[[^\]]*\])*)(?::(?: (?<value>.*))?)?$/.exec(
-      line,
-    )?.groups;
+  const { key, value } = LINE.exec(line)?.groups ?? {};
+  const parts = key === undefined ? undefined : KEY.exec(unquote(key))?.groups;
   if (parts?.role === undefined) {
     return line;
   }
@@ -116,7 +186,7 @@ const headOf = (line: string): Head | string => {
     role: parts.role,
     name: scalarOf(parts.name),
     annotations: [...(parts.annotations ?? "").matchAll(/\[[^\]]*\]/g)].map(([annotation]) => annotation),
-    value: scalarOf(parts.value),
+    value: scalarOf(value),
   };
 };
 
@@ -257,13 +327,24 @@ type Place = {
   ancestors: string[];
 };
 
+/*
+ * A heading heads what follows it in its container, down to the next heading. A generic is layout, not a section, so a
+ * heading inside one (a card's header `div`) still heads what follows that generic; leaving any other container
+ * (`main`, a dialog, a list item) drops it.
+ */
 const placesOf = (tree: ParsedTree, refs: ReadonlySet<string>, candidates: ReadonlySet<string>) => {
   const places = new Map<string, Place>();
-  let lastHeading: string | undefined;
-  const walk = (entries: Entry[], ancestors: { printed: string; name: string }[], inHeading?: string) => {
+  /** Walks `entries` under the heading `following`, and returns the heading in force after them. */
+  const walk = (
+    entries: Entry[],
+    ancestors: { printed: string; name: string }[],
+    inHeading: string | undefined,
+    following: string | undefined,
+  ): string | undefined => {
+    let lastHeading = following;
     for (const { head, children } of entries) {
       if (typeof head === "string") {
-        walk(children, ancestors, inHeading);
+        lastHeading = walk(children, ancestors, inHeading, lastHeading);
         continue;
       }
       const isHeading = head.role === "heading";
@@ -282,10 +363,14 @@ const placesOf = (tree: ParsedTree, refs: ReadonlySet<string>, candidates: Reado
       }
       const ancestor = isHeading ? undefined : ancestorOf(head, children, candidates);
       const within = ancestor === undefined ? ancestors : [ancestor, ...ancestors];
-      walk(children, within, isHeading ? lastHeading : inHeading);
+      const after = walk(children, within, isHeading ? lastHeading : inHeading, lastHeading);
+      if (head.role === "generic") {
+        lastHeading = after;
+      }
     }
+    return lastHeading;
   };
-  walk(tree.entries, []);
+  walk(tree.entries, [], undefined, undefined);
   return places;
 };
 
@@ -370,8 +455,14 @@ export const lineageOf = (tree: ParsedTree, ref: string): ReadonlySet<string> =>
 const WORD_START = /^[\p{L}\p{N}]/u;
 const WORD_END = /[\p{L}\p{N}]$/u;
 
-/** Whether `text` occurs in `name` as whole words: `3` does in `Option 3 (X-3)`, not in `Option 13`. */
+/**
+ * Whether `text` occurs in `name` as whole words: `3` does in `Option 3 (X-3)`, not in `Option 13`. An empty text
+ * holds no words, so no name holds it.
+ */
 const holdsWords = (name: string, text: string) => {
+  if (text === "") {
+    return false;
+  }
   for (let at = name.indexOf(text); at !== -1; at = name.indexOf(text, at + 1)) {
     const before = name.slice(0, at);
     const after = name.slice(at + text.length);
@@ -399,7 +490,7 @@ export const isCopyOf = (
   }
   const { name } = candidate;
   const otherName = other.name;
-  if (name === undefined || otherName === undefined || name === "" || otherName === "") {
+  if (name === undefined || otherName === undefined) {
     return false;
   }
   return holdsWords(name, otherName) || holdsWords(otherName, name);
