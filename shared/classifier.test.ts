@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { afterEach, describe, mock, test } from "node:test";
 
 import {
+  ClassifierError,
   classify,
   GATEWAY_CACHE_TTL_SECONDS,
   parseModel,
@@ -184,24 +185,24 @@ describe("replyFrom", () => {
   const expected = { answers: run.answers, usage: { input: 1200, output: 3 } };
 
   test("reads a run at the top level: TypeSafe, and Clef through AI Gateway", () => {
-    assert.deepStrictEqual(replyFrom(JSON.stringify({ model: "clef", ...run }), isIt), expected);
+    assert.deepStrictEqual(replyFrom(JSON.stringify({ model: "clef", ...run }), isIt, 200), expected);
   });
 
   test("reads a run under result: Jev through AI Gateway", () => {
-    assert.deepStrictEqual(replyFrom(JSON.stringify({ state: "Completed", result: run }), isIt), expected);
+    assert.deepStrictEqual(replyFrom(JSON.stringify({ state: "Completed", result: run }), isIt, 200), expected);
   });
 
   test("reads a run under result: Clef through Workers AI's /ai/run", () => {
-    assert.deepStrictEqual(replyFrom(JSON.stringify({ success: true, result: run }), isIt), expected);
+    assert.deepStrictEqual(replyFrom(JSON.stringify({ success: true, result: run }), isIt, 200), expected);
   });
 
   test("reads a run under result.result: Jev through Workers AI's /ai/run", () => {
     const text = JSON.stringify({ success: true, result: { state: "Completed", result: run } });
-    assert.deepStrictEqual(replyFrom(text, isIt), expected);
+    assert.deepStrictEqual(replyFrom(text, isIt, 200), expected);
   });
 
   test("reads a choice answer", () => {
-    assert.deepStrictEqual(replyFrom(body({ target: picked }), pick).answers.target, picked);
+    assert.deepStrictEqual(replyFrom(body({ target: picked }), pick, 200).answers.target, picked);
   });
 
   test("missing or malformed usage is null, not zero", () => {
@@ -210,54 +211,59 @@ describe("replyFrom", () => {
       answers: { r: { type: "noul", noul: 0.5 } },
       usage: { input_tokens: "1200", output_tokens: 3 },
     });
-    assert.deepStrictEqual([replyFrom(missing, isIt).usage, replyFrom(malformed, isIt).usage], [
+    assert.deepStrictEqual([replyFrom(missing, isIt, 200).usage, replyFrom(malformed, isIt, 200).usage], [
       null,
       null,
     ]);
   });
 
   test("a noul outside 0 to 1 is rejected, naming the question", () => {
-    assert.throws(() => replyFrom(body({ r: { type: "noul", noul: 1.5 } }), isIt), /no valid answer for r$/u);
+    assert.throws(() => replyFrom(body({ r: { type: "noul", noul: 1.5 } }), isIt, 200), /no valid answer for r$/u);
   });
 
   test("a missing answer is rejected, naming every unanswered question", () => {
     const both = { ...isIt, s: { type: "noul" } } satisfies Questions;
-    assert.throws(() => replyFrom(body({}), both), /no valid answer for r, s$/u);
+    assert.throws(() => replyFrom(body({}), both, 200), /no valid answer for r, s$/u);
   });
 
   test("an answer of the other question type is rejected", () => {
-    assert.throws(() => replyFrom(body({ r: picked }), isIt), /no valid answer for r$/u);
+    assert.throws(() => replyFrom(body({ r: picked }), isIt, 200), /no valid answer for r$/u);
   });
 
   test("a choice that is not one of the question's labels is rejected", () => {
-    assert.throws(() => replyFrom(body({ target: { ...picked, choice: "e3" } }), pick), /for target$/u);
+    assert.throws(() => replyFrom(body({ target: { ...picked, choice: "e3" } }), pick, 200), /for target$/u);
   });
 
   test("a choice whose label is only inherited, not one of the criteria, is rejected", () => {
-    assert.throws(() => replyFrom(body({ target: { ...picked, choice: "toString" } }), pick), /for target$/u);
+    assert.throws(() => replyFrom(body({ target: { ...picked, choice: "toString" } }), pick, 200), /for target$/u);
   });
 
   test("a choice with a non-numeric probability is rejected", () => {
     const answer = { ...picked, probabilities: { e1: "0.1", e2: 0.9 } };
-    assert.throws(() => replyFrom(body({ target: answer }), pick), /for target$/u);
+    assert.throws(() => replyFrom(body({ target: answer }), pick, 200), /for target$/u);
   });
 
   test("a choice with a confidence outside 0 to 1 is rejected", () => {
-    assert.throws(() => replyFrom(body({ target: { ...picked, confidence: 2 } }), pick), /for target$/u);
+    assert.throws(() => replyFrom(body({ target: { ...picked, confidence: 2 } }), pick, 200), /for target$/u);
   });
 
   test("a Cloudflare body reporting failure is an error carrying its errors", () => {
     const text = JSON.stringify({ success: false, errors: [{ message: "quota" }] });
-    assert.throws(() => replyFrom(text, isIt), /quota/u);
+    assert.throws(() => replyFrom(text, isIt, 200), /quota/u);
+  });
+
+  test("a Cloudflare body reporting failure is a ClassifierError with the response's status", () => {
+    const text = JSON.stringify({ success: false, errors: [{ message: "quota" }] });
+    assert.throws(() => replyFrom(text, isIt, 200), (error) => error instanceof ClassifierError && error.status === 200);
   });
 
   test("a run that has not completed is an error", () => {
     const text = JSON.stringify({ result: { state: "Queued", result: {} } });
-    assert.throws(() => replyFrom(text, isIt), /state Queued/u);
+    assert.throws(() => replyFrom(text, isIt, 200), /state Queued/u);
   });
 
   test("a body without answers is an error", () => {
-    assert.throws(() => replyFrom("{}", isIt), /no answers/u);
+    assert.throws(() => replyFrom("{}", isIt, 200), /no answers/u);
   });
 });
 
@@ -292,6 +298,49 @@ describe("classify", () => {
   test("an HTTP error throws with the status and the body", async () => {
     respond(401, JSON.stringify({ detail: "invalid key" }));
     await assert.rejects(classify(typesafe, jevOnTypesafe, { state, questions: isIt }), /HTTP 401: .*invalid key/u);
+  });
+
+  test("an HTTP error carries its status and TypeSafe's error code", async () => {
+    respond(400, JSON.stringify({ detail: { error_type: "max_tokens_exceeded" } }));
+    await assert.rejects(
+      classify(typesafe, jevOnTypesafe, { state, questions: isIt }),
+      (error) => error instanceof ClassifierError && error.status === 400 && error.code === "max_tokens_exceeded",
+    );
+  });
+
+  test("an HTTP error carries the code Cloudflare relays inside its error message", async () => {
+    const relayed = 'Model execution failed (User Input Error): {"detail":{"error_type":"max_tokens_exceeded"}}';
+    respond(400, JSON.stringify({ success: false, result: [], error: [{ code: 7003, message: relayed }] }));
+    await assert.rejects(
+      classify(typesafe, jevOnTypesafe, { state, questions: isIt }),
+      (error) => error instanceof ClassifierError && error.code === "max_tokens_exceeded",
+    );
+  });
+
+  test("an HTTP error carries the code Cloudflare relays in an error string", async () => {
+    const relayed = 'Model execution failed (User Input Error): {"detail":{"error_type":"max_tokens_exceeded"}}';
+    respond(400, JSON.stringify({ success: false, result: [], error: relayed }));
+    await assert.rejects(
+      classify(typesafe, jevOnTypesafe, { state, questions: isIt }),
+      (error) => error instanceof ClassifierError && error.code === "max_tokens_exceeded",
+    );
+  });
+
+  test("an HTTP error carries the code Cloudflare relays in an error object", async () => {
+    const relayed = 'Model execution failed (User Input Error): {"detail":{"error_type":"max_tokens_exceeded"}}';
+    respond(400, JSON.stringify({ success: false, result: [], error: { code: 7003, message: relayed } }));
+    await assert.rejects(
+      classify(typesafe, jevOnTypesafe, { state, questions: isIt }),
+      (error) => error instanceof ClassifierError && error.code === "max_tokens_exceeded",
+    );
+  });
+
+  test("an HTTP error whose body is not JSON carries no code", async () => {
+    respond(500, "<html>down</html>");
+    await assert.rejects(
+      classify(typesafe, jevOnTypesafe, { state, questions: isIt }),
+      (error) => error instanceof ClassifierError && error.status === 500 && error.code === undefined,
+    );
   });
 
   test("a request that outlasts the timeout throws naming the timeout", async () => {

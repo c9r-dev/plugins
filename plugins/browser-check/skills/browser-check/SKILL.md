@@ -238,11 +238,11 @@ All of it lands in the same output directory.
   and the `detail` chain shows what was done.
 - Step count is bounded only by the 10-minute timeout (~1.5 s per step).
 - `--app` covers only the apps with a manifest; use `--url` otherwise.
-- Jev reads the whole page tree on every step (an open dialog's tree when one is open), never a cut-down one, so an
-  element late in the DOM such as a drawer tab is still in view. The tree is sent with a ref only on the elements
-  the step offers Jev, and with none for a check: refs were 40% of a 108 KB checkbox grid's tokens (28.7k with
-  every ref, 17.5k with none). Every candidate element is offered, in questions of at most 250, and when more than
-  one question picks an element Jev chooses between those picks in one more call. A page still past Jev's limit
-  fails that step with `max_tokens_exceeded`; a typical app page is about 5k tokens.
+- Jev reads the whole page tree on every step (an open dialog's tree when one is open), so an element late in the
+  DOM such as a drawer tab is still in view; the saved `step-N.aria.yml` keeps that tree in full. A page past Jev's
+  input limit is asked again with a compact tree for the rest of the step, which can make checks less exact.
+- Every element is offered, in slices of at most 250. A pick with look-alike copies (a "View Code" under every
+  example) is told apart by its place on the page, at no more than the pick's own confidence, or refused when it
+  reads the same as another copy even there. A page still past the limit fails with `max_tokens_exceeded`.
 - Elements hidden from the accessibility tree cannot be targeted, such as a date picker whose input is
   `aria-hidden`. Seed that data instead of filling it.

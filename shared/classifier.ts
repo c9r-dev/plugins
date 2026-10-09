@@ -182,6 +182,60 @@ export async function requestFor<Qs extends Questions>(
 
 const isObject = (value: unknown): value is object => typeof value === "object" && value !== null;
 
+/**
+ * A request the provider failed: its HTTP status, and its own code for the error when the body names one, such as
+ * `max_tokens_exceeded` for an input past the model's limit.
+ */
+export class ClassifierError extends Error {
+  readonly status: number;
+  readonly code: string | undefined;
+
+  constructor(message: string, status: number, code: string | undefined) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/** `text` as JSON, or undefined when it is not: a provider's error body may be HTML or a bare message. */
+const jsonIn = (text: string): unknown => {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+};
+
+/*
+ * The provider's code in a failure body: TypeSafe's `{"detail":{"error_type":…}}`, wherever it sits. Cloudflare
+ * relays that body as text after a prefix of its own, in an `error` or `errors` field it shapes as a string, an
+ * object or an array of entries, so every value is searched and a string is read from its first `{`.
+ */
+const errorCodeOf = (body: unknown): string | undefined => {
+  if (typeof body === "string") {
+    const start = body.indexOf("{");
+    return start === -1 ? undefined : errorCodeOf(jsonIn(body.slice(start)));
+  }
+  if (!isObject(body)) {
+    return undefined;
+  }
+  if (
+    "detail" in body &&
+    isObject(body.detail) &&
+    "error_type" in body.detail &&
+    typeof body.detail.error_type === "string"
+  ) {
+    return body.detail.error_type;
+  }
+  for (const value of Object.values(body)) {
+    const code = errorCodeOf(value);
+    if (code !== undefined) {
+      return code;
+    }
+  }
+  return undefined;
+};
+
 const isProbability = (value: unknown): value is number => typeof value === "number" && value >= 0 && value <= 1;
 
 const isTokenCount = (value: unknown): value is number =>
@@ -192,12 +246,12 @@ const isTokenCount = (value: unknown): value is number =>
  * `result`, or `result.result`), so this follows `result` down to the first object holding `answers`. On the way, any
  * level reporting `success: false` or a run `state` other than `Completed` is an error.
  */
-function runObject(text: string): object {
+function runObject(text: string, status: number): object {
   let level: unknown = JSON.parse(text);
   while (isObject(level)) {
     if ("success" in level && level.success === false) {
       const errors = "errors" in level ? JSON.stringify(level.errors) : text;
-      throw new Error(`classifier request failed: ${errors.slice(0, 300)}`);
+      throw new ClassifierError(`classifier request failed: ${errors.slice(0, 300)}`, status, errorCodeOf(level));
     }
     if ("state" in level && typeof level.state === "string" && level.state !== "Completed") {
       throw new Error(`classifier run did not complete: state ${level.state}`);
@@ -256,11 +310,15 @@ function usageOf(run: object): Usage | null {
 }
 
 /**
- * The answers and usage in a successful (HTTP 2xx) response body. Throws when the body reports a failure, or when any
- * question has no valid answer, naming those questions.
+ * The answers and usage in a successful (HTTP 2xx, `status`) response body. Throws when the body reports a failure,
+ * as a `ClassifierError`, or when any question has no valid answer, naming those questions.
  */
-export function replyFrom<Qs extends Questions>(text: string, questions: Qs): Omit<Classified<Qs>, "gatewayHit"> {
-  const run = runObject(text);
+export function replyFrom<Qs extends Questions>(
+  text: string,
+  questions: Qs,
+  status: number,
+): Omit<Classified<Qs>, "gatewayHit"> {
+  const run = runObject(text, status);
   const returned: Record<string, unknown> = "answers" in run && isObject(run.answers) ? { ...run.answers } : {};
   if (!answersEvery(questions, returned)) {
     throw new Error(`classifier returned no valid answer for ${unanswered(questions, returned).join(", ")}`);
@@ -328,17 +386,21 @@ export async function classify<Qs extends Questions>(
     }
     if (response.ok) {
       return {
-        ...replyFrom(text, classification.questions),
+        ...replyFrom(text, classification.questions, response.status),
         gatewayHit: response.headers.get("cf-aig-cache-status") === "HIT",
       };
     }
-    const failure = `${model.name} request failed after ${attempts(attempt)}: HTTP ${response.status}: ${text.slice(0, 300)}`;
+    const failure = new ClassifierError(
+      `${model.name} request failed after ${attempts(attempt)}: HTTP ${response.status}: ${text.slice(0, 300)}`,
+      response.status,
+      errorCodeOf(jsonIn(text)),
+    );
     if (!RETRYABLE_STATUSES.has(response.status) || attempt === MAX_ATTEMPTS) {
-      throw new Error(failure);
+      throw failure;
     }
     const delay = retryDelayMs(response, attempt);
     if (Date.now() + delay >= deadline) {
-      throw new Error(failure);
+      throw failure;
     }
     await sleep(delay);
   }
