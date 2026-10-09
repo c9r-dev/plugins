@@ -103,17 +103,26 @@ describe("halvesOf", () => {
   const type = choiceAmong("type", "Which?", [{ ref: "e900", label: 'textbox "Search"', name: "Search" }]);
   const slices = [click.slices[0], type.slices[0]].filter((slice) => slice !== undefined);
 
-  it("splits each slice into a first and a second half, named apart", () => {
+  it("splits the request's candidates across its slices into a first and a second half, named apart", () => {
     const halves = halvesOf(slices);
     assert.deepEqual(
       halves?.map((half) => half.map((slice) => [slice.name, refsIn(slice)])),
       [
+        [["click0a", ["e1", "e2", "e3"]]],
         [
-          ["click0a", ["e1", "e2", "e3"]],
-          ["type0", ["e900"]],
+          ["click0b", ["e4", "e5"]],
+          ["type0b", ["e900"]],
         ],
-        [["click0b", ["e4", "e5"]]],
       ],
+    );
+  });
+
+  it("splits slices of one candidate each apart", () => {
+    const single = choiceAmong("click", "Which?", checkboxes(1)).slices;
+    const halves = halvesOf([...single, ...type.slices]);
+    assert.deepEqual(
+      halves?.map((half) => half.map((slice) => [slice.name, refsIn(slice)])),
+      [[["click0a", ["e1"]]], [["type0b", ["e900"]]]],
     );
   });
 
@@ -124,7 +133,7 @@ describe("halvesOf", () => {
   it("keeps each half in its choice", () => {
     assert.deepEqual(
       halvesOf(slices)?.flat().map(({ choice }) => choice),
-      ["click", "type", "click"],
+      ["click", "click", "type"],
     );
   });
 

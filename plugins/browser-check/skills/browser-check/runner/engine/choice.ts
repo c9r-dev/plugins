@@ -89,24 +89,29 @@ export const requestOf = (slices: Slice[]) => ({
 
 /**
  * The two requests to ask instead of one that was past the classifier's input limit: the first and the second half
- * of each slice. A slice of one candidate cannot be split and goes whole into the first. Undefined when no slice can
- * be split, since then the tree alone is past the limit.
+ * of its candidates, taken across its slices in order. Each half asks its share of a slice under the slice's name
+ * suffixed `a` or `b`, so the questions of both halves keep distinct names. Undefined when the request offers fewer
+ * than two candidates, since then the tree alone is past the limit.
  */
 export const halvesOf = (slices: Slice[]): [Slice[], Slice[]] | undefined => {
-  if (slices.every(({ candidates }) => candidates.length < 2)) {
+  const total = slices.reduce((sum, { candidates }) => sum + candidates.length, 0);
+  if (total < 2) {
     return undefined;
   }
+  const middle = Math.ceil(total / 2);
   const first: Slice[] = [];
   const second: Slice[] = [];
+  let start = 0;
   for (const slice of slices) {
     const { candidates, name } = slice;
-    if (candidates.length < 2) {
-      first.push(slice);
-      continue;
+    const cut = Math.min(Math.max(middle - start, 0), candidates.length);
+    if (cut > 0) {
+      first.push({ ...slice, name: `${name}a`, candidates: candidates.slice(0, cut) });
     }
-    const middle = Math.ceil(candidates.length / 2);
-    first.push({ ...slice, name: `${name}a`, candidates: candidates.slice(0, middle) });
-    second.push({ ...slice, name: `${name}b`, candidates: candidates.slice(middle) });
+    if (cut < candidates.length) {
+      second.push({ ...slice, name: `${name}b`, candidates: candidates.slice(cut) });
+    }
+    start += candidates.length;
   }
   return [first, second];
 };

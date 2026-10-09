@@ -93,6 +93,16 @@ describe("chooserFor", () => {
     assert.equal(calls.length, 2);
   });
 
+  it("splits a request of one-candidate slices that overflow together but fit apart", async () => {
+    const { ask } = fakeClassifier({ limit: 1, target: "e2" });
+    const slices = [
+      ...choiceAmong("click", "Which?", checkboxes(1)).slices,
+      ...choiceAmong("type", "Which?", checkboxes(2).slice(1)).slices,
+    ];
+    const { answers } = await chooserFor(ask, TREE).askSlices(slices);
+    assert.deepEqual([answers.click0a?.choice, answers.type0b?.choice], [NONE, "e2"]);
+  });
+
   it("asks split halves one after the other", async () => {
     const { ask, mostInFlight } = fakeClassifier({ limit: 10, target: "e90" });
     await chooserFor(ask, TREE).decide(click(100));

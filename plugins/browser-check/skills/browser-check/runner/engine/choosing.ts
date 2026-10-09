@@ -69,7 +69,8 @@ export const chooserFor = (ask: Ask, tree: ParsedTree) => {
 
   /*
    * Ask `slices` in one request, and `extra` questions beside them. A request past the input limit is asked again as
-   * two, the first and then the second half of each slice, `extra` with the first; halves are split again as needed.
+   * two, the first and then the second half of its candidates, `extra` with the first; halves are split again as
+   * needed.
    */
   const askSlices = async (slices: Slice[], extra: Questions = {}): Promise<Asked> => {
     const covers = slices.map(({ name }) => name);
